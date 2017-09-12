@@ -4,3 +4,5 @@ version = "0.1.0"
 authors = ["Klimov Nikolay <klimov.ns@mail.ru>"]
 
 [dependencies]
+chrono = "0.4"
+regex = "0.2"
