@@ -4,56 +4,58 @@ use chrono::prelude::*;
 use regex::Regex;
 
 #[derive(Debug)]
-enum CommandType {
-    None,
-    OneTimeEvent,
+pub enum Command {
+    BadCommand,
+    OneTimeEvent(OneTimeEventImpl),
 }
 
 #[derive(Debug)]
-pub struct Command{
-    event_type : CommandType,
+pub struct OneTimeEventImpl{
     pub event_time : DateTime<Local>,
     pub event_text : String,
 }
 
 
-impl Command{
-    pub fn parse_command(commind_line : String) -> Command {
-        let reg_main    = Regex::new(r"(?P<spec>[\d\w]*)(?P<divider> )(?P<main_text>.*)").unwrap();
+pub fn parse_command(commind_line : String) -> Command {
+    let reg_main    = Regex::new(r"(?P<spec>[\d\w]*)(?P<divider> )(?P<main_text>.*)").unwrap();
 
-        let reg_day     = r"(?P<days>[\d]*)[D|d]";
-        let reg_hour    = r"(?P<hours>[\d]*)[H|h]";
-        let reg_min     = r"(?P<minuts>[\d]*)[M|m]";
-        let reg_sec     = r"(?P<seconds>[\d]*)[S|s]";
-
-
-        let caps = reg_main.captures(&commind_line).unwrap();
-        let spec = caps.name("spec").unwrap().as_str();
-        let text = caps.name("main_text").unwrap().as_str();
+    let reg_day     = r"(?P<days>[\d]*)[D|d]";
+    let reg_hour    = r"(?P<hours>[\d]*)[H|h]";
+    let reg_min     = r"(?P<minuts>[\d]*)[M|m]";
+    let reg_sec     = r"(?P<seconds>[\d]*)[S|s]";
 
 
-        let days    = get_first_regex_group_as_u32(reg_day,  spec);
-        let hours   = get_first_regex_group_as_u32(reg_hour, spec);
-        let minutes = get_first_regex_group_as_u32(reg_min,  spec);
-        let seconds = get_first_regex_group_as_u32(reg_sec,  spec);
-
-        // TODO: should we a better way to do this
-        let dt = chrono::Duration::seconds((days as i64) * (60*60*24) 
-                                        + (hours as i64) * (60*60) 
-                                        + (minutes as i64) * 60 
-                                        + (seconds as i64)
-                                        );
-
-        let event_time = Local::now() + dt;
-        // println!("{}\n{}\n{}", dt, Local::now(), event_time);
-
-        Command { event_type : CommandType::OneTimeEvent
-                , event_text : String::from(text)
-                , event_time : event_time } 
+    let caps = reg_main.captures(&commind_line);
+    if caps.is_none() {
+        return Command::BadCommand;
     }
+    let caps = caps.unwrap();
+    let spec = caps.name("spec").unwrap().as_str();
+    let text = caps.name("main_text").unwrap().as_str();
 
 
-} // impl Command
+    let days    = get_first_regex_group_as_u32(reg_day,  spec);
+    let hours   = get_first_regex_group_as_u32(reg_hour, spec);
+    let minutes = get_first_regex_group_as_u32(reg_min,  spec);
+    let seconds = get_first_regex_group_as_u32(reg_sec,  spec);
+
+    // TODO: should we a better way to do this
+    let dt = chrono::Duration::seconds((days as i64) * (60*60*24) 
+                                    + (hours as i64) * (60*60) 
+                                    + (minutes as i64) * 60 
+                                    + (seconds as i64)
+                                    );
+
+    let event_time = Local::now() + dt;
+    // println!("{}\n{}\n{}", dt, Local::now(), event_time);
+
+    Command::OneTimeEvent(OneTimeEventImpl 
+            { event_text : String::from(text)
+            , event_time : event_time } 
+        )
+}
+
+
 
 fn get_first_regex_group_as_u32(reg : &str, text : &str) -> u32{
     let reg = Regex::new(reg).expect("get_first_regex_group_as_u32: wrong regex string");
