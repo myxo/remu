@@ -62,7 +62,7 @@ impl Engine {
         self.stop_loop = true;
     }
 
-    pub fn new_engine() -> Engine{
+    pub fn new() -> Engine{
         Engine {stop_loop : false
             , next_wakeup : None
             , data_base : DataBase::new()

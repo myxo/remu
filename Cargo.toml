@@ -3,6 +3,15 @@ name = "rust"
 version = "0.1.0"
 authors = ["Klimov Nikolay <klimov.ns@mail.ru>"]
 
+[lib]
+name = "telegram_rust_backend"
+crate-type = ["dylib"]
+
 [dependencies]
 chrono = "0.4"
 regex = "0.2"
+lazy_static = "0.2"
+
+[dependencies.cpython]
+version = "0.1"
+features = ["extension-module"]
