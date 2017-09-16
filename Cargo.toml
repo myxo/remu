@@ -1,5 +1,5 @@
 [package]
-name = "rust"
+name = "remu"
 version = "0.1.0"
 authors = ["Klimov Nikolay <klimov.ns@mail.ru>"]
 
@@ -7,9 +7,15 @@ authors = ["Klimov Nikolay <klimov.ns@mail.ru>"]
 name = "telegram_rust_backend"
 crate-type = ["dylib"]
 
+[profile.dev]
+debug = true
+opt-level = 0
+
 [dependencies]
 chrono = "0.4"
 regex = "0.2"
+log = "0.3"
+fern = "0.4"
 
 [dependencies.cpython]
 version = "0.1"

@@ -16,7 +16,8 @@ pub struct OneTimeEventImpl{
 }
 
 
-pub fn parse_command(commind_line : String) -> Command {
+pub fn parse_command(command_line : String) -> Command {
+    debug!("parse incoming text: {}", command_line);
     let reg_main    = Regex::new(r"(?P<spec>[\d\w]*)(?P<divider> )(?P<main_text>.*)").unwrap();
 
     let reg_day     = r"(?P<days>[\d]*)[D|d]";
@@ -25,8 +26,9 @@ pub fn parse_command(commind_line : String) -> Command {
     let reg_sec     = r"(?P<seconds>[\d]*)[S|s]";
 
 
-    let caps = reg_main.captures(&commind_line);
+    let caps = reg_main.captures(&command_line);
     if caps.is_none() {
+        warn!("parse_command: incoming text doesn't match main regex");
         return Command::BadCommand;
     }
     let caps = caps.unwrap();
