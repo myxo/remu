@@ -22,7 +22,7 @@ chat_id = 0
 
 
 @bot.message_handler(content_types=["text"])
-def repeat_all_messages(message):
+def send_to_engine(message):
     global chat_id
     if chat_id != message.chat.id:
         logging.info('chat_id changed!')
@@ -33,7 +33,10 @@ def repeat_all_messages(message):
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
     if call.message:
-        handle_user_message(call.data)
+        if call.data != "Ok":
+            handle_user_message(call.data + " " + call.message.text)
+        # delete keys
+        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=call.message.text)
 
 
 def handle_user_message(message_text):
@@ -51,9 +54,14 @@ def run_check_loop():
 
 def send_message(message_text):
     keyboard = telebot.types.InlineKeyboardMarkup()
-    callback_data = '1h ' + message_text
-    callback_button = telebot.types.InlineKeyboardButton(text="1h", callback_data=callback_data)
-    keyboard.add(callback_button)
+    callback_button_5m = telebot.types.InlineKeyboardButton(text="5m", callback_data="5m")
+    callback_button_30m = telebot.types.InlineKeyboardButton(text="30m", callback_data="30m")
+    callback_button_1h = telebot.types.InlineKeyboardButton(text="1h", callback_data="1h")
+    keyboard.add(callback_button_5m, callback_button_30m, callback_button_1h)
+    callback_button_3h = telebot.types.InlineKeyboardButton(text="3h", callback_data="3h")
+    callback_button_1d = telebot.types.InlineKeyboardButton(text="1d", callback_data="1d")
+    callback_button_ok = telebot.types.InlineKeyboardButton(text="Ok", callback_data="Ok")
+    keyboard.add(callback_button_3h, callback_button_1d, callback_button_ok)
     bot.send_message(chat_id, message_text, reply_markup=keyboard)
 
 if __name__ == '__main__':
