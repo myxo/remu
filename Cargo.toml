@@ -16,6 +16,7 @@ chrono = "0.4"
 regex = "0.2"
 log = "0.3"
 fern = "0.4"
+rusqlite = "0.11"
 
 [dependencies.cpython]
 version = "0.1"
