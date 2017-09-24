@@ -7,6 +7,7 @@ extern crate cpython;
 #[macro_use]
 extern crate log;
 extern crate fern;
+extern crate rusqlite;
 
 mod command;
 pub mod engine;
