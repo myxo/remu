@@ -4,7 +4,6 @@ use chrono::prelude::*;
 use rusqlite::Connection;
 
 pub struct DataBase {
-    // db_link: HashMap<DateTime<Local>, Command>,
     conn: Connection,
 }
 
@@ -22,7 +21,6 @@ impl DataBase {
     }
 
     pub fn put(&mut self, key: DateTime<Local>, value: Command) {
-        // self.db_link.insert(key, value.clone());
         match value {
             Command::BadCommand => warn!("Can't put BadCommand in database"),
             Command::OneTimeEvent(e) => self.put_one_time_event(&e),
@@ -31,9 +29,6 @@ impl DataBase {
 
     pub fn pop(&mut self, key: DateTime<Local>) -> Option<Command> {
         let event_timestamp = key.timestamp();
-
-        let mut id : i32 = 5;
-
 
         let mut stmt = self.conn.prepare(SQL_SELECT_BY_TIMESTAMP).expect("error in prepare");
         let person_iter = stmt.query_map(&[&event_timestamp], |row| {
@@ -58,7 +53,6 @@ impl DataBase {
     }
 
     pub fn get_nearest_wakeup(&self) -> Option<DateTime<Local>> {
-        // self.db_link.keys().min().cloned()
         self.conn.query_row(SQL_MIN_TIMESTAMP_ONE_TIME_EVENT, &[], |row| {
             let result = row.get_checked(0);
             match result {
