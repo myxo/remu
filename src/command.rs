@@ -11,7 +11,7 @@ pub enum Command {
 
 #[derive(Debug)]
 pub struct OneTimeEventImpl{
-    pub event_time : DateTime<Local>,
+    pub event_time : DateTime<Utc>,
     pub event_text : String,
 }
 
@@ -48,8 +48,7 @@ pub fn parse_command(command_line : String) -> Command {
                                     + (seconds as i64)
                                     );
 
-    let event_time = Local::now() + dt;
-    // println!("{}\n{}\n{}", dt, Local::now(), event_time);
+    let event_time = Utc::now() + dt;
 
     Command::OneTimeEvent(OneTimeEventImpl 
             { event_text : String::from(text)

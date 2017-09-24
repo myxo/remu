@@ -20,12 +20,15 @@ chat_id = 0
 #     with open(message.document.file_name, 'wb') as f:
 #         f.write(file)
 
+@bot.message_handler(commands=['list', 'help'])
+def handle_list(message):
+    pass
 
 @bot.message_handler(content_types=["text"])
 def send_to_engine(message):
     global chat_id
-    if chat_id != message.chat.id:
-        logging.info('chat_id changed!')
+    # if chat_id != message.chat.id:
+        # logging.info('chat_id changed!')
     chat_id = message.chat.id
     handle_user_message(message.text)
 
@@ -52,6 +55,7 @@ def run_check_loop():
             send_message(text)
         time.sleep(0.5)
 
+
 def send_message(message_text):
     keyboard = telebot.types.InlineKeyboardMarkup()
     callback_button_5m = telebot.types.InlineKeyboardButton(text="5m", callback_data="5m")
@@ -66,7 +70,7 @@ def send_message(message_text):
 
 if __name__ == '__main__':
     # engine.register_action_callback( lambda text: bot.send_message(chat_id, text))
-    engine.initialize()
+    engine.initialize(True)
     # engine.run()
     threading.Thread(target=run_check_loop).start()
     bot.polling(none_stop=True)
