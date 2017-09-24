@@ -25,21 +25,21 @@ py_module_initializer!(libtelegram_rust_backend,
     PyInit_libtelegram_rust_backend, 
     |py, m| 
     {
-        m.add(py, "initialize", py_fn!(py, initialize()))?;
+        m.add(py, "initialize", py_fn!(py, initialize(verbose: bool)))?;
         m.add(py, "run", py_fn!(py, run()))?;
         m.add(py, "stop", py_fn!(py, stop()))?;
-        m.add(py, "handle_text_message", py_fn!(py, handle_text_message(message : &str)))?;
+        m.add(py, "handle_text_message", py_fn!(py, handle_text_message(message: &str)))?;
         m.add(py, "check_for_message", py_fn!(py, check_for_message()))?;
 
         Ok(())
     });
 
-fn initialize(_py : Python) -> PyResult<(u64)>{
-    setup_logging(3);
+fn initialize(_py : Python, verbose: bool) -> PyResult<(bool)>{
+    setup_logging(3, verbose).expect("ERROR in logging initialization.");
     unsafe {
         ENG = Some(Engine::new());
     }
-    Ok((64))
+    Ok((true))
 }
 
 fn run(_py : Python) -> PyResult<(u64)>{
@@ -77,7 +77,7 @@ fn check_for_message(_py : Python) -> PyResult<String>{
 
 
 
-fn setup_logging(verbosity: u64) -> Result<(), fern::InitError> {
+fn setup_logging(verbosity: u64, console_output_enabled: bool) -> Result<(), fern::InitError> {
     let mut base_config = fern::Dispatch::new();
 
     base_config = match verbosity {
@@ -125,7 +125,11 @@ fn setup_logging(verbosity: u64) -> Result<(), fern::InitError> {
         })
         .chain(io::stdout());
 
-    base_config.chain(file_config).chain(stdout_config).apply()?;
+    if console_output_enabled {
+        base_config.chain(file_config).chain(stdout_config).apply()?;
+    } else {
+        base_config.chain(file_config).apply()?;
+    }
 
     Ok(())
 }

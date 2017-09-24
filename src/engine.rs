@@ -7,7 +7,7 @@ use database::DataBase;
 
 
 pub struct Engine {
-    next_wakeup: Option<DateTime<Local>>,
+    next_wakeup: Option<DateTime<Utc>>,
     data_base: DataBase,
     // callback : fn(),
     stop_loop: bool,
@@ -44,7 +44,7 @@ impl Engine {
         }
         let next_wakeup = self.next_wakeup.unwrap();
 
-        if Local::now() > next_wakeup {
+        if Utc::now() > next_wakeup {
             let command = self.data_base.pop(next_wakeup);
             match command {
                 None => return String::from(""),
@@ -92,8 +92,27 @@ impl Engine {
         return_string
     }
 
-    fn format_return_message_header(&self, event_time: &DateTime<Local>) -> String {
-        event_time.format("I'll remind you at %H:%M").to_string()
+    fn format_return_message_header(&self, event_time: &DateTime<Utc>) -> String {
+        const DEFAULT_TZ : i32 = 3;
+        let tz = FixedOffset::east(DEFAULT_TZ * 3600);
+        let t_event = event_time.with_timezone(&tz);
+        let t_now = Utc::now().with_timezone(&tz);
+
+        if t_event < t_now {
+            return String::from("Event time is in the past. Is it right?");
+        }
+
+        // days from year 1 TODO: maybe day of the year?
+        let day_event = t_event.num_days_from_ce();
+        let day_now = t_now.num_days_from_ce();
+        let dt = day_event - day_now;
+
+        if dt == 0 {
+            return t_event.format("I'll remind you today at %H:%M").to_string();
+        } else if dt == 1 {
+            return t_event.format("I'll remind you tomorrow at %H:%M").to_string();
+        }
+        t_event.format("I'll remind you %B %e at %H:%M").to_string()
     }
 
     pub fn stop(&mut self) {
@@ -109,4 +128,8 @@ impl Engine {
             data_base: DataBase::new(),
         }
     }
+
+    // pub fn get_active_event_list() -> Vec<String> {
+
+    // }
 }
