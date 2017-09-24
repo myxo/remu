@@ -14,6 +14,15 @@ pub struct Engine {
 }
 
 impl Engine {
+    pub fn new() -> Engine {
+        info!("Initialize engine");
+        Engine {
+            stop_loop: false,
+            next_wakeup: None,
+            data_base: DataBase::new(),
+        }
+    }
+
     // Temporary unavailable
     pub fn run(&mut self) {
         self.stop_loop = false;
@@ -120,16 +129,19 @@ impl Engine {
         self.stop_loop = true;
     }
 
-    pub fn new() -> Engine {
-        info!("Initialize engine");
-        Engine {
-            stop_loop: false,
-            next_wakeup: None,
-            data_base: DataBase::new(),
+    pub fn get_active_event_list(&self) -> Vec<String> {
+        let mut result = Vec::new();
+        let command_vector = self.data_base.get_all_active_events();
+        for command in command_vector {
+            match command {
+                Command::OneTimeEvent(c) => {
+                    let text: String = c.event_text.chars().take(20).collect();
+                    let date: String = c.event_time.format("%c").to_string();
+                    result.push(format!("{} {}", text, date));
+                }
+                Command::BadCommand => {}
+            }
         }
+        result
     }
-
-    // pub fn get_active_event_list() -> Vec<String> {
-
-    // }
 }

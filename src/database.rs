@@ -29,8 +29,8 @@ impl DataBase {
     pub fn pop(&mut self, key: DateTime<Utc>) -> Option<Command> {
         let event_timestamp = key.timestamp();
 
-        let mut stmt = self.conn.prepare(SQL_SELECT_BY_TIMESTAMP).expect("error in prepare");
-        let person_iter = stmt.query_map(&[&event_timestamp], |row| {
+        let mut stmt = self.conn.prepare(SQL_SELECT_BY_TIMESTAMP).expect("error in sql connection prepare");
+        let command_iter = stmt.query_map(&[&event_timestamp], |row| {
             let id = row.get(0);
             let c = Command::OneTimeEvent( OneTimeEventImpl {
                 event_text: row.get(1), 
@@ -40,11 +40,11 @@ impl DataBase {
             Res {id: id, com: c}
         }).expect("error in query map");
 
-        for person in person_iter {
-            let p = person.unwrap();
-            let id = p.id;
+        for command in command_iter {
+            let c = command.unwrap();
+            let id = c.id;
             self.conn.execute(SQL_DELETE_ONE_TIME_EVENT, &[&id]).expect("Cannot remove from one_time_event table");
-            return Some(p.com);
+            return Some(c.com);
         }
 
         None
@@ -58,6 +58,27 @@ impl DataBase {
                 Err(_) => None,
             }
         }).unwrap()
+    }
+
+
+    pub fn get_all_active_events(&self) -> Vec<Command> {
+        let mut result = Vec::new();
+
+        let mut stmt = self.conn.prepare(SQL_SELECT_ALL).expect("error in sql connection prepare");
+        let command_iter = stmt.query_map(&[], |row| {
+            let c = Command::OneTimeEvent( OneTimeEventImpl {
+                event_text: row.get(1), 
+                event_time: Utc.timestamp(row.get(2), 0),
+            });
+
+            c
+        }).expect("error in query map");
+
+        for command in command_iter {
+            result.push(command.unwrap());
+        }
+
+        result
     }
 
 
@@ -90,3 +111,6 @@ const SQL_DELETE_ONE_TIME_EVENT : &str =
 
 const SQL_MIN_TIMESTAMP_ONE_TIME_EVENT : &str =
     "SELECT min(event_time) FROM one_time_event;";
+
+const SQL_SELECT_ALL : &str = 
+    "SELECT id, message_text, event_time FROM one_time_event;";

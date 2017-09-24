@@ -31,6 +31,7 @@ py_module_initializer!(libtelegram_rust_backend,
         m.add(py, "stop", py_fn!(py, stop()))?;
         m.add(py, "handle_text_message", py_fn!(py, handle_text_message(message: &str)))?;
         m.add(py, "check_for_message", py_fn!(py, check_for_message()))?;
+        m.add(py, "get_active_events", py_fn!(py, get_active_events()))?;
 
         Ok(())
     });
@@ -71,6 +72,14 @@ fn check_for_message(_py : Python) -> PyResult<String>{
     let out;
     unsafe{
         out = ENG.as_mut().expect("initialize engine!").check_for_message();
+    }
+    Ok(out)
+}
+
+fn get_active_events(_py : Python) -> PyResult<Vec<String>>{
+    let out;
+    unsafe{
+        out = ENG.as_mut().expect("initialize engine!").get_active_event_list();
     }
     Ok(out)
 }
