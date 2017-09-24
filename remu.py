@@ -2,6 +2,7 @@ import telebot
 import logging
 import time
 import threading
+import argparse
 # from datetime import date, time, datetime, timedelta
 
 import libtelegram_rust_backend as engine
@@ -72,7 +73,15 @@ def send_message(message_text):
 
 if __name__ == '__main__':
     # engine.register_action_callback( lambda text: bot.send_message(chat_id, text))
-    engine.initialize(True)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-v", "--verbose", help="show log lines in stdout",
+                    action="store_true")
+    args = parser.parse_args()
+    verbose = False
+    if args.verbose:
+        verbose = True
+
+    engine.initialize(verbose)
     # engine.run()
     threading.Thread(target=run_check_loop).start()
     bot.polling(none_stop=True)
