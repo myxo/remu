@@ -41,6 +41,11 @@ pub fn parse_command(command_line : String) -> Command {
     let minutes = get_first_regex_group_as_u32(reg_min,  spec);
     let seconds = get_first_regex_group_as_u32(reg_sec,  spec);
 
+    if days == 0 && hours == 0 && minutes == 0 && seconds == 0 {
+        warn!("parse_command: incoming text doesn't match main regex");
+        return Command::BadCommand;
+    }
+
     // TODO: should we a better way to do this
     let dt = chrono::Duration::seconds((days as i64) * (60*60*24) 
                                     + (hours as i64) * (60*60) 
