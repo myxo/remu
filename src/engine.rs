@@ -82,7 +82,7 @@ impl Engine {
         let mut return_string = self.format_return_message_header(&c.event_time);
         return_string.push('\n');
         return_string.push_str(&c.event_text);
-        self.data_base.put(c.event_time, Command::OneTimeEvent(c));
+        self.data_base.put(Command::OneTimeEvent(c));
         self.next_wakeup = self.data_base.get_nearest_wakeup();
         
         // delete newline char to write to log

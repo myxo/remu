@@ -1,5 +1,4 @@
 use command::{Command, OneTimeEventImpl};
-use std::collections::HashMap;
 use chrono::prelude::*;
 use rusqlite::Connection;
 
@@ -20,14 +19,14 @@ impl DataBase {
         DataBase { conn }
     }
 
-    pub fn put(&mut self, key: DateTime<Local>, value: Command) {
+    pub fn put(&mut self, value: Command) {
         match value {
             Command::BadCommand => warn!("Can't put BadCommand in database"),
             Command::OneTimeEvent(e) => self.put_one_time_event(&e),
         }
     }
 
-    pub fn pop(&mut self, key: DateTime<Local>) -> Option<Command> {
+    pub fn pop(&mut self, key: DateTime<Utc>) -> Option<Command> {
         let event_timestamp = key.timestamp();
 
         let mut stmt = self.conn.prepare(SQL_SELECT_BY_TIMESTAMP).expect("error in prepare");
@@ -35,7 +34,7 @@ impl DataBase {
             let id = row.get(0);
             let c = Command::OneTimeEvent( OneTimeEventImpl {
                 event_text: row.get(1), 
-                event_time: Local.timestamp(row.get(2), 0),
+                event_time: Utc.timestamp(row.get(2), 0),
             });
 
             Res {id: id, com: c}
@@ -43,8 +42,7 @@ impl DataBase {
 
         for person in person_iter {
             let p = person.unwrap();
-            println!("Found person {:?}", p);
-            id = p.id;
+            let id = p.id;
             self.conn.execute(SQL_DELETE_ONE_TIME_EVENT, &[&id]).expect("Cannot remove from one_time_event table");
             return Some(p.com);
         }
@@ -52,11 +50,11 @@ impl DataBase {
         None
     }
 
-    pub fn get_nearest_wakeup(&self) -> Option<DateTime<Local>> {
+    pub fn get_nearest_wakeup(&self) -> Option<DateTime<Utc>> {
         self.conn.query_row(SQL_MIN_TIMESTAMP_ONE_TIME_EVENT, &[], |row| {
             let result = row.get_checked(0);
             match result {
-                Ok(expr) => Some(Local.timestamp(expr, 0)),
+                Ok(expr) => Some(Utc.timestamp(expr, 0)),
                 Err(_) => None,
             }
         }).unwrap()
