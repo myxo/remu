@@ -7,4 +7,5 @@ libtelegram_rust_backend.so
 log.txt
 log-engine.txt
 token.id
+chat.id
 database.db

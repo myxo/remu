@@ -11,6 +11,7 @@ logging.basicConfig(filename='log.txt', format='[%(asctime)s] [%(levelname)s]  %
 
 f = open('token.id', 'r')
 token = f.read()
+f.close()
 bot = telebot.TeleBot(token)
 chat_id = 0
 
@@ -30,9 +31,9 @@ def handle_list(message):
 @bot.message_handler(content_types=["text"])
 def send_to_engine(message):
     global chat_id
-    # if chat_id != message.chat.id:
-        # logging.info('chat_id changed!')
-    chat_id = message.chat.id
+    if chat_id != message.chat.id:
+        chat_id = message.chat.id
+        save_chat_id()
     handle_user_message(message.text)
 
 
@@ -71,6 +72,20 @@ def send_message(message_text):
     keyboard.add(callback_button_3h, callback_button_1d, callback_button_ok)
     bot.send_message(chat_id, message_text, reply_markup=keyboard)
 
+
+def save_chat_id():
+    global chat_id
+    with open('chat.id', 'w') as f_cid:
+        f_cid.write(str(chat_id))
+
+def read_chat_id():
+    global chat_id
+    try:
+        with open('chat.id', 'r') as f_cid:
+            chat_id = f_cid.read()
+    except:
+        chat_id = 0
+
 if __name__ == '__main__':
     # engine.register_action_callback( lambda text: bot.send_message(chat_id, text))
     parser = argparse.ArgumentParser()
@@ -80,6 +95,8 @@ if __name__ == '__main__':
     verbose = False
     if args.verbose:
         verbose = True
+
+    read_chat_id()
 
     engine.initialize(verbose)
     # engine.run()
