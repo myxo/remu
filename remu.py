@@ -51,15 +51,6 @@ def handle_user_message(message_text):
     bot.send_message(chat_id, text)
 
 
-# temporal solution
-def run_check_loop():
-    while True:
-        text = engine.check_for_message()
-        if text != "":
-            send_message(text)
-        time.sleep(0.5)
-
-
 def send_message(message_text):
     keyboard = telebot.types.InlineKeyboardMarkup()
     callback_button_5m = telebot.types.InlineKeyboardButton(text="5m", callback_data="5m")
@@ -86,6 +77,9 @@ def read_chat_id():
     except:
         chat_id = 0
 
+def callback(text):
+    send_message(text)
+
 if __name__ == '__main__':
     # engine.register_action_callback( lambda text: bot.send_message(chat_id, text))
     parser = argparse.ArgumentParser()
@@ -99,8 +93,8 @@ if __name__ == '__main__':
     read_chat_id()
 
     engine.initialize(verbose)
-    # engine.run()
-    threading.Thread(target=run_check_loop).start()
+    engine.register_callback(callback)
+    engine.run()
     bot.polling(none_stop=True)
 
     engine.stop()

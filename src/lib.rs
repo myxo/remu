@@ -15,11 +15,12 @@ mod database;
 
 use engine::Engine;
 
-use cpython::{Python, PyResult};
+use cpython::{Python, PyResult, PyObject, ObjectProtocol, PyTuple, ToPyObject, PythonObject};
 use std::thread;
 use std::io;
 
 static mut ENG : Option<Engine> = None;
+static mut CALLBACK : Option<PyObject> = None;
 
 py_module_initializer!(libtelegram_rust_backend, 
     initlibtelegram_rust_backend, 
@@ -30,8 +31,8 @@ py_module_initializer!(libtelegram_rust_backend,
         m.add(py, "run", py_fn!(py, run()))?;
         m.add(py, "stop", py_fn!(py, stop()))?;
         m.add(py, "handle_text_message", py_fn!(py, handle_text_message(message: &str)))?;
-        m.add(py, "check_for_message", py_fn!(py, check_for_message()))?;
         m.add(py, "get_active_events", py_fn!(py, get_active_events()))?;
+        m.add(py, "register_callback", py_fn!(py, register_callback(obj: PyObject)))?;
 
         Ok(())
     });
@@ -68,13 +69,6 @@ fn handle_text_message(_py : Python, message : &str) -> PyResult<String>{
     Ok(out)
 }
 
-fn check_for_message(_py : Python) -> PyResult<String>{
-    let out;
-    unsafe{
-        out = ENG.as_mut().expect("initialize engine!").check_for_message();
-    }
-    Ok(out)
-}
 
 fn get_active_events(_py : Python) -> PyResult<Vec<String>>{
     let out;
@@ -82,6 +76,28 @@ fn get_active_events(_py : Python) -> PyResult<Vec<String>>{
         out = ENG.as_mut().expect("initialize engine!").get_active_event_list();
     }
     Ok(out)
+}
+
+fn engine_callback(text: String){
+    unsafe{
+        if CALLBACK.is_some() {
+            let gil = Python::acquire_gil();
+            let py = gil.python();
+            let py_turple = PyTuple::new(py, &[text.to_py_object(py).into_object()]);
+            let _res = CALLBACK.as_mut().unwrap().call(py, py_turple, None);
+        }
+    }
+}
+
+fn register_callback(_py : Python, obj : PyObject) -> PyResult<bool>{
+    if obj.is_callable(_py) {
+        unsafe{
+            CALLBACK = Some(obj);
+            ENG.as_mut().expect("initialize engine!").register_callback(engine_callback);
+        }
+        return Ok(true);
+    }
+    Ok(false)
 }
 
 

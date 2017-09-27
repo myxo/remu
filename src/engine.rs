@@ -9,7 +9,7 @@ use database::DataBase;
 pub struct Engine {
     next_wakeup: Option<DateTime<Utc>>,
     data_base: DataBase,
-    // callback : fn(),
+    callback : Option<(fn(String))>,
     stop_loop: bool,
 }
 
@@ -19,23 +19,17 @@ impl Engine {
         Engine {
             stop_loop: false,
             next_wakeup: None,
+            callback: None,
             data_base: DataBase::new(),
         }
     }
 
-    // Temporary unavailable
+    // Normally should be run in another thread
     pub fn run(&mut self) {
         self.stop_loop = false;
         self.loop_thread();
-        // thread::spawn( move || { self.loop_thread() } );
     }
 
-    // temporal solution for get message from python
-    // TODO: delete this after figuring out how to deal with callback from python
-    // DO NOT DO RUN WITH THIS FUNCTION!
-    pub fn check_for_message(&mut self) -> String {
-        self.tick()
-    }
 
     fn loop_thread(&mut self) {
         info!("Start engine loop");
@@ -65,6 +59,7 @@ impl Engine {
                             info!("Event time, text - <{}>", &command_text);
                             // self.next_wakeup = Local::now() + chrono::Duration::seconds(3)
                             self.next_wakeup = self.data_base.get_nearest_wakeup();
+                            (self.callback.unwrap())(command_text.clone());
                             return command_text;
                         }
                     }
@@ -81,6 +76,10 @@ impl Engine {
             Command::BadCommand => self.process_bad_command(),
             Command::OneTimeEvent(e) => self.process_one_time_event_command(e),
         }
+    }
+
+    pub fn register_callback(&mut self, f: fn(String)){
+        self.callback = Some(f);
     }
 
     fn process_bad_command(&self) -> String {
