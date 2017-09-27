@@ -5,7 +5,7 @@ import threading
 import argparse
 # from datetime import date, time, datetime, timedelta
 
-import libtelegram_rust_backend as engine
+import libremu_backend as engine
 
 logging.basicConfig(filename='log.txt', format='[%(asctime)s] [%(levelname)s]  %(message)s', level=logging.INFO)
 
