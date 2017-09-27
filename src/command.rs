@@ -20,10 +20,10 @@ pub fn parse_command(command_line : String) -> Command {
     debug!("parse incoming text: {}", command_line);
     let reg_main    = Regex::new(r"(?P<spec>[\d\w]*)(?P<divider> )(?P<main_text>.*)").unwrap();
 
-    let reg_day     = r"(?P<days>[\d]*)[D|d]";
-    let reg_hour    = r"(?P<hours>[\d]*)[H|h]";
-    let reg_min     = r"(?P<minuts>[\d]*)[M|m]";
-    let reg_sec     = r"(?P<seconds>[\d]*)[S|s]";
+    let reg_day     = r"(?P<days>[\d]*)[D|d|Д|д]";
+    let reg_hour    = r"(?P<hours>[\d]*)[H|h|Ч|ч]";
+    let reg_min     = r"(?P<minuts>[\d]*)[M|m|М|м]";
+    let reg_sec     = r"(?P<seconds>[\d]*)[S|s|С|с]";
 
 
     let caps = reg_main.captures(&command_line);
