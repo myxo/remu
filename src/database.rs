@@ -64,7 +64,7 @@ impl DataBase {
     pub fn get_all_active_events(&self) -> Vec<Command> {
         let mut result = Vec::new();
 
-        let mut stmt = self.conn.prepare(SQL_SELECT_ALL).expect("error in sql connection prepare");
+        let mut stmt = self.conn.prepare(SQL_SELECT_ALL_LIMIT).expect("error in sql connection prepare");
         let command_iter = stmt.query_map(&[], |row| {
             let c = Command::OneTimeEvent( OneTimeEventImpl {
                 event_text: row.get(1), 
@@ -112,5 +112,5 @@ const SQL_DELETE_ONE_TIME_EVENT : &str =
 const SQL_MIN_TIMESTAMP_ONE_TIME_EVENT : &str =
     "SELECT min(event_time) FROM one_time_event;";
 
-const SQL_SELECT_ALL : &str = 
-    "SELECT id, message_text, event_time FROM one_time_event;";
+const SQL_SELECT_ALL_LIMIT : &str = 
+    "SELECT id, message_text, event_time FROM one_time_event ORDER BY event_time LIMIT 20;";
