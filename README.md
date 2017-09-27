@@ -1,10 +1,12 @@
 # Remu 
-Remu - telegram bot witch remind you about events. Backend written in rust, frontend (http api talker) in python with telebod library.
+Remu - telegram bot witch remind you about events. Backend written in rust, frontend (http api talker) in python with telebot library.
 
 ## Run
-Just run
+Create file token.id, put there your bot token_id and run
 ```
-run.sh --release
+$ touch token.id
+$ echo <token_id> > token.id
+$ run.sh --release
 ```
 
 Tested in Ubuntu 16.04
