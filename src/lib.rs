@@ -22,9 +22,9 @@ use std::io;
 static mut ENG : Option<Engine> = None;
 static mut CALLBACK : Option<PyObject> = None;
 
-py_module_initializer!(libtelegram_rust_backend, 
-    initlibtelegram_rust_backend, 
-    PyInit_libtelegram_rust_backend, 
+py_module_initializer!(libremu_backend, 
+    initlibremu_backend, 
+    PyInit_libremu_backend, 
     |py, m| 
     {
         m.add(py, "initialize", py_fn!(py, initialize(verbose: bool)))?;

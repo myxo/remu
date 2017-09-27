@@ -4,12 +4,8 @@ version = "0.1.0"
 authors = ["Klimov Nikolay <klimov.ns@mail.ru>"]
 
 [lib]
-name = "telegram_rust_backend"
+name = "remu_backend"
 crate-type = ["dylib"]
-
-[profile.dev]
-debug = true
-opt-level = 0
 
 [dependencies]
 chrono = "0.4"
