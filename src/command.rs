@@ -1,7 +1,7 @@
 extern crate chrono;
 
 use chrono::prelude::*;
-use regex::Regex;
+use regex::{Regex, Captures};
 
 #[derive(Debug)]
 pub enum Command {
@@ -17,7 +17,45 @@ pub struct OneTimeEventImpl{
 
 
 pub fn parse_command(command_line : String) -> Command {
+    let command_line = String::from(command_line.trim());
     debug!("parse incoming text: {}", command_line);
+    let mut result;
+    result = try_parse_for(&command_line);
+    if result.is_some() {
+        return result.unwrap();
+    }
+
+    result = try_parse_at(&command_line);
+    if result.is_some() {
+        return result.unwrap();
+    }
+    Command::BadCommand
+}
+
+
+fn try_parse_at(command_line : &String) -> Option<Command>{
+    let time_format = Regex::new(r"[at|в]\s*(?P<day>[\d]*)(?:-(?P<month>[\d]*))?(?:-(?P<year>[\d]*))? (?P<hour>[\d]*).(?P<minute>[\d]*) (?P<main_text>.*)").unwrap();
+
+
+    let date_captures = time_format.captures(command_line);
+    if date_captures.is_none() {
+        warn!("parse_command: line {} doesn't match time_format regex", command_line);
+        return None;
+    }
+
+    let date_captures = date_captures.unwrap();
+
+    let text = date_captures.name("main_text").unwrap().as_str();
+    let d = get_datetime_from_capture(&date_captures);
+
+    Some(Command::OneTimeEvent(OneTimeEventImpl 
+            { event_text : String::from(text)
+            , event_time : d } 
+        ))
+}
+
+
+fn try_parse_for(command_line : &String) -> Option<Command>{
     let reg_main    = Regex::new(r"(?P<spec>[\d\w]*)(?P<divider> )(?P<main_text>.*)").unwrap();
 
     let reg_day     = r"(?P<days>[\d]*)[D|d|Д|д]";
@@ -26,10 +64,10 @@ pub fn parse_command(command_line : String) -> Command {
     let reg_sec     = r"(?P<seconds>[\d]*)[S|s|С|с]";
 
 
-    let caps = reg_main.captures(&command_line);
+    let caps = reg_main.captures(command_line);
     if caps.is_none() {
         warn!("parse_command: incoming text doesn't match main regex");
-        return Command::BadCommand;
+        return None;
     }
     let caps = caps.unwrap();
     let spec = caps.name("spec").unwrap().as_str();
@@ -43,7 +81,7 @@ pub fn parse_command(command_line : String) -> Command {
 
     if days == 0 && hours == 0 && minutes == 0 && seconds == 0 {
         warn!("parse_command: incoming text doesn't match main regex");
-        return Command::BadCommand;
+        return None;
     }
 
     // TODO: should we a better way to do this
@@ -55,12 +93,11 @@ pub fn parse_command(command_line : String) -> Command {
 
     let event_time = Utc::now() + dt;
 
-    Command::OneTimeEvent(OneTimeEventImpl 
+    Some(Command::OneTimeEvent(OneTimeEventImpl 
             { event_text : String::from(text)
             , event_time : event_time } 
-        )
+        ))
 }
-
 
 
 fn get_first_regex_group_as_u32(reg : &str, text : &str) -> u32{
@@ -72,4 +109,29 @@ fn get_first_regex_group_as_u32(reg : &str, text : &str) -> u32{
             .as_str(), 
     };
     number.parse().unwrap_or(0)
+}
+
+
+fn get_datetime_from_capture(cap: &Captures) -> DateTime<Utc>{
+    let day = cap.name("day").unwrap().as_str().parse().unwrap();
+    let hour = cap.name("hour").unwrap().as_str().parse().unwrap();
+    let minute = cap.name("minute").unwrap().as_str().parse().unwrap();
+
+    let now = Utc::now();
+
+    let month = match cap.name("month"){
+        None => now.month(),
+        Some(m) => m.as_str().parse().unwrap(),
+    };
+
+    let year = match cap.name("year"){
+        None => now.year(),
+        Some(m) => m.as_str().parse().unwrap(),
+    };
+    
+
+    const DEFAULT_TZ : i64 = -3;
+    let dt = chrono::Duration::seconds(DEFAULT_TZ * 60 * 60);
+
+    Utc.ymd(year, month, day).and_hms(hour, minute, 0) + dt
 }
