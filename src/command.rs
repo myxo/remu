@@ -152,27 +152,73 @@ mod tests {
     use command::Command::*;
 
     #[test]
-    fn parse_for_tests() {
-        {
-            let command = String::from("1d2h3m4s");
-            let text = "some text";
-            let command_text = command + " " + text;
-            let dt = chrono::Duration::seconds((1 as i64) * (60*60*24)  // days
-                                            + (2 as i64) * (60*60)      // hours
-                                            + (3 as i64) * 60           // minutes
-                                            + (4 as i64)                // seconds
-                                            );
-            let result = try_parse_for(&command_text);
-            assert!(result.is_some());
-            match result.unwrap(){
-                OneTimeEvent(res) => {
-                    assert_eq!(res.event_text, text);
-                    assert!(time_moment_eq(res.event_time, Utc::now() + dt));
-                },
-                _ => panic!("Wrong command type")
-            };
-            
-        }
+    fn parse_for_general() {
+        let command = String::from("1d2h3m4s");
+        let text = "some text";
+        let command_text = command + " " + text;
+        let dt = chrono::Duration::seconds((1 as i64) * (60*60*24)  // days
+                                        + (2 as i64) * (60*60)      // hours
+                                        + (3 as i64) * 60           // minutes
+                                        + (4 as i64)                // seconds
+                                        );
+        let result = try_parse_for(&command_text);
+        assert!(result.is_some());
+        match result.unwrap(){
+            OneTimeEvent(res) => {
+                assert_eq!(res.event_text, text);
+                assert!(time_moment_eq(res.event_time, Utc::now() + dt));
+            },
+            _ => panic!("Wrong command type")
+        };
+    }
+
+    #[test]
+    fn parse_for_hm() {
+        let command = String::from("2h30m");
+        let text = "some text";
+        let command_text = command + " " + text;
+        let dt = chrono::Duration::seconds((0 as i64) * (60*60*24)  // days
+                                        + (2 as i64) * (60*60)      // hours
+                                        + (30 as i64) * 60           // minutes
+                                        + (0 as i64)                // seconds
+                                        );
+        let result = try_parse_for(&command_text);
+        assert!(result.is_some());
+        match result.unwrap(){
+            OneTimeEvent(res) => {
+                assert_eq!(res.event_text, text);
+                assert!(time_moment_eq(res.event_time, Utc::now() + dt));
+            },
+            _ => panic!("Wrong command type")
+        };
+    }
+
+    #[test]
+    #[ignore]
+    fn parse_for_negative() {
+        let command = String::from("1d-2h3m4s");
+        let text = "some text";
+        let command_text = command + " " + text;
+        let result = try_parse_for(&command_text);
+        assert!(result.is_some());
+        match result.unwrap(){
+            BadCommand => {},
+            _ => panic!("Wrong command type")
+        };
+    }
+
+    #[test]
+    #[ignore]
+    fn parse_for_misspell() {
+        let command = String::from("1d2j3m4s");
+        let text = "some text";
+        let command_text = command + " " + text;
+        let result = try_parse_for(&command_text);
+        assert!(result.is_some());
+        match result.unwrap(){
+            BadCommand => {},
+            _ => panic!("Wrong command type")
+        };
     }
 
     #[test]
@@ -183,6 +229,24 @@ mod tests {
             let mut command_text = command + " " + text;
             command_text.insert_str(0, "at");
             let t = Utc.ymd(2017, 10, 24).and_hms(18-3, 30, 0);
+
+            let result = try_parse_at(&command_text);
+            assert!(result.is_some());
+            match result.unwrap(){
+                OneTimeEvent(res) => {
+                    assert_eq!(res.event_text, text);
+                    assert_eq!(res.event_time, t);
+                },
+                _ => panic!("Wrong command type")
+            };
+        }
+
+        {
+            let command = String::from("24 18:30");
+            let text = "some text";
+            let mut command_text = command + " " + text;
+            command_text.insert_str(0, "at");
+            let t = Utc.ymd(2017, 9, 24).and_hms(18-3, 30, 0);
 
             let result = try_parse_at(&command_text);
             assert!(result.is_some());
