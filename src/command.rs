@@ -16,11 +16,12 @@ pub struct OneTimeEventImpl{
 }
 
 
-// const MOMENT_REGEX: &str = 
-//     r"(?P<day>[\d]*)(?:-(?P<month>[\d]*))?(?:-(?P<year>[\d]*))? (?P<hour>[\d]*).(?P<minute>[\d]*)";
+const MOMENT_REGEX: &str = 
+    r"(?P<day>[\d]*)(?:-(?P<month>[\d]*))?(?:-(?P<year>[\d]*))? (?P<hour>[\d]*).(?P<minute>[\d]*)";
 
-// const DURATION_REGEX: &str = 
-//     r"";
+
+const DURATION_REGEX: &str = 
+    r"(:?(?P<days>[\d]*)[D|d|Д|д])?(:?(?P<hours>[\d]*)[H|h|Ч|ч])?(:?(?P<minuts>[\d]*)[M|m|М|м])?(:?(?P<seconds>[\d]*)[S|s|С|с])?";
 
 pub fn parse_command(command_line : String) -> Command {
     let command_line = String::from(command_line.trim());
@@ -43,12 +44,11 @@ pub fn parse_command(command_line : String) -> Command {
 
 
 fn try_parse_at(command_line : &String) -> Option<Command>{
-    let time_format = Regex::new(r"[at|в]\s*(?P<day>[\d]*)(?:-(?P<month>[\d]*))?(?:-(?P<year>[\d]*))? (?P<hour>[\d]*).(?P<minute>[\d]*) (?P<main_text>.*)").unwrap();
-
+    let reg = String::from(r"[at|в]\s*") + MOMENT_REGEX + " (?P<main_text>.*)";
+    let time_format = Regex::new(&reg[..]).unwrap();
 
     let date_captures = time_format.captures(command_line);
     if date_captures.is_none() {
-        
         return None;
     }
     let date_captures = date_captures.unwrap();
@@ -67,14 +67,15 @@ fn try_parse_at(command_line : &String) -> Option<Command>{
 
 
 fn try_parse_for(command_line : &String) -> Option<Command>{
-    let reg_main    = Regex::new(r"(?P<spec>[\d\w]*)(?P<divider> )(?P<main_text>.*)").unwrap();
+    let reg_main    = Regex::new(r"^(?P<spec>[\d|D|d|Д|д|H|h|Ч|ч|M|m|М|м|S|s|С|с]*)(?P<divider> )(?P<main_text>.*)").unwrap();
 
     let reg_day     = r"(?P<days>[\d]*)[D|d|Д|д]";
     let reg_hour    = r"(?P<hours>[\d]*)[H|h|Ч|ч]";
     let reg_min     = r"(?P<minuts>[\d]*)[M|m|М|м]";
     let reg_sec     = r"(?P<seconds>[\d]*)[S|s|С|с]";
 
-
+    
+    
     let caps = reg_main.captures(command_line);
     if caps.is_none() {
         return None;
@@ -82,7 +83,6 @@ fn try_parse_for(command_line : &String) -> Option<Command>{
     let caps = caps.unwrap();
     let spec = caps.name("spec").unwrap().as_str();
     let text = caps.name("main_text").unwrap().as_str();
-
 
     let days    = get_first_regex_group_as_u32(reg_day,  spec);
     let hours   = get_first_regex_group_as_u32(reg_hour, spec);
@@ -194,31 +194,23 @@ mod tests {
     }
 
     #[test]
-    #[ignore]
+    // #[ignore]
     fn parse_for_negative() {
         let command = String::from("1d-2h3m4s");
         let text = "some text";
         let command_text = command + " " + text;
         let result = try_parse_for(&command_text);
-        assert!(result.is_some());
-        match result.unwrap(){
-            BadCommand => {},
-            _ => panic!("Wrong command type")
-        };
+        assert!(result.is_none());
     }
 
     #[test]
-    #[ignore]
+    // #[ignore]
     fn parse_for_misspell() {
         let command = String::from("1d2j3m4s");
         let text = "some text";
         let command_text = command + " " + text;
         let result = try_parse_for(&command_text);
-        assert!(result.is_some());
-        match result.unwrap(){
-            BadCommand => {},
-            _ => panic!("Wrong command type")
-        };
+        assert!(result.is_none());
     }
 
     #[test]
@@ -228,7 +220,8 @@ mod tests {
             let text = "some text";
             let mut command_text = command + " " + text;
             command_text.insert_str(0, "at");
-            let t = Utc.ymd(2017, 10, 24).and_hms(18-3, 30, 0);
+            let now = Utc::now();
+            let t = Utc.ymd(now.year(), 10, 24).and_hms(18-3, 30, 0);
 
             let result = try_parse_at(&command_text);
             assert!(result.is_some());
@@ -246,7 +239,8 @@ mod tests {
             let text = "some text";
             let mut command_text = command + " " + text;
             command_text.insert_str(0, "at");
-            let t = Utc.ymd(2017, 9, 24).and_hms(18-3, 30, 0);
+            let now = Utc::now();
+            let t = Utc.ymd(now.year(), now.month(), 24).and_hms(18-3, 30, 0);
 
             let result = try_parse_at(&command_text);
             assert!(result.is_some());
