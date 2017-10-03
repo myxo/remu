@@ -25,7 +25,7 @@ chat_id = 0
 @bot.message_handler(commands=['list', 'help'])
 def handle_list(message):
     l = engine.get_active_events()
-    text = '\n'.join(l)
+    text = '\n'.join(l) if l else 'No current active event'
     bot.send_message(chat_id, text)
 
 @bot.message_handler(content_types=["text"])
