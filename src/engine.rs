@@ -39,35 +39,23 @@ impl Engine {
         }
     }
 
-    // TODO: this matches look awful. Rewrite
-    fn tick(&mut self) -> String {
+    fn tick(&mut self) {
         if self.next_wakeup.is_none() {
             self.next_wakeup = self.data_base.get_nearest_wakeup();
-            return String::from("");
+            return;
         }
         let next_wakeup = self.next_wakeup.unwrap();
 
         if Utc::now() > next_wakeup {
-            let command = self.data_base.pop(next_wakeup);
-            match command {
-                None => return String::from(""),
-                Some(c) => {
-                    match c {
-                        Command::BadCommand => return String::from(""),
-                        Command::OneTimeEvent(ev) => {
-                                let command_text = ev.event_text;
-                                info!("Event time, text - <{}>", &command_text);
-                                // self.next_wakeup = Local::now() + chrono::Duration::seconds(3)
-                                self.next_wakeup = self.data_base.get_nearest_wakeup();
-                                (self.callback.unwrap())(command_text.clone());
-                                return command_text;
-                            }
-                        Command::RepetitiveEvent(ev) => {return String::from("Not implemented yet")}
-                    }
+            if let Some(command) = self.data_base.pop(next_wakeup) {
+                match command {
+                    Command::OneTimeEvent(ev) => self.on_one_time_event(ev),
+                    Command::RepetitiveEvent(ev) => self.on_repetitive_event(ev),
+                    Command::BadCommand => warn!("Database::pop return BadCommand"),
                 }
             }
+            self.next_wakeup = self.data_base.get_nearest_wakeup();
         }
-        String::from("")
     }
 
     pub fn handle_text_message(&mut self, text_message: &str) -> String {
@@ -104,6 +92,16 @@ impl Engine {
 
     fn process_repetitive_event_command(&mut self, c: RepetitiveEventImpl) -> String {
         String::from("Not implemented yet")
+    }
+
+    fn on_one_time_event(&self, event: OneTimeEventImpl){
+        info!("Event time, text - <{}>", &event.event_text);
+        (self.callback.unwrap())(event.event_text);
+    }
+
+    fn on_repetitive_event(&self, event: RepetitiveEventImpl){
+        info!("Event time, text - <{}>", &event.event_text);
+        (self.callback.unwrap())(event.event_text);
     }
 
     fn format_return_message_header(&self, event_time: &DateTime<Utc>) -> String {
