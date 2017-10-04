@@ -54,14 +54,15 @@ impl Engine {
                 Some(c) => {
                     match c {
                         Command::BadCommand => return String::from(""),
-                        Command::OneTimeEvent(e) => {
-                            let command_text = e.event_text;
-                            info!("Event time, text - <{}>", &command_text);
-                            // self.next_wakeup = Local::now() + chrono::Duration::seconds(3)
-                            self.next_wakeup = self.data_base.get_nearest_wakeup();
-                            (self.callback.unwrap())(command_text.clone());
-                            return command_text;
-                        }
+                        Command::OneTimeEvent(ev) => {
+                                let command_text = ev.event_text;
+                                info!("Event time, text - <{}>", &command_text);
+                                // self.next_wakeup = Local::now() + chrono::Duration::seconds(3)
+                                self.next_wakeup = self.data_base.get_nearest_wakeup();
+                                (self.callback.unwrap())(command_text.clone());
+                                return command_text;
+                            }
+                        Command::RepetitiveEvent(ev) => {return String::from("Not implemented yet")}
                     }
                 }
             }
@@ -74,7 +75,8 @@ impl Engine {
         let com = parse_command(String::from(text_message));
         match com {
             Command::BadCommand => self.process_bad_command(),
-            Command::OneTimeEvent(e) => self.process_one_time_event_command(e),
+            Command::OneTimeEvent(ev) => self.process_one_time_event_command(ev),
+            Command::RepetitiveEvent(ev) => self.process_repetitive_event_command(ev),
         }
     }
 
@@ -98,6 +100,10 @@ impl Engine {
         info!("Successfully process command, return string - <{}>", tmp_string);
 
         return_string
+    }
+
+    fn process_repetitive_event_command(&mut self, c: RepetitiveEventImpl) -> String {
+        String::from("Not implemented yet")
     }
 
     fn format_return_message_header(&self, event_time: &DateTime<Utc>) -> String {
@@ -139,6 +145,7 @@ impl Engine {
                     result.push(format!("{} : {}", date, text));
                 }
                 Command::BadCommand => {}
+                Command::RepetitiveEvent(_ev) => {}
             }
         }
         result

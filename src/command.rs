@@ -7,6 +7,7 @@ use regex::{Regex, Captures};
 pub enum Command {
     BadCommand,
     OneTimeEvent(OneTimeEventImpl),
+    RepetitiveEvent(RepetitiveEventImpl),
 }
 
 #[derive(Debug)]
@@ -15,12 +16,19 @@ pub struct OneTimeEventImpl{
     pub event_text : String,
 }
 
+#[derive(Debug)]
+pub struct RepetitiveEventImpl{
+    pub event_start_time : DateTime<Utc>,
+    pub event_wait_time : chrono::Duration,
+    pub event_text : String,
+}
+
 
 const MOMENT_REGEX: &str = 
-    r"(?P<day>[\d]*)(?:-(?P<month>[\d]*))?(?:-(?P<year>[\d]*))? (?P<hour>[\d]*).(?P<minute>[\d]*)";
+    r"(?P<m_day>[\d]*)(?:-(?P<m_month>[\d]*))?(?:-(?P<m_year>[\d]*))? (?P<m_hour>[\d]*).(?P<m_minute>[\d]*)";
 
 const DURATION_REGEX: &str = 
-    r"(:?(?P<day>[\d]*)[D|d|Д|д])?(:?(?P<hour>[\d]*)[H|h|Ч|ч])?(:?(?P<minute>[\d]*)[M|m|М|м])?(:?(?P<second>[\d]*)[S|s|С|с])?";
+    r"(:?(?P<d_day>[\d]*)[D|d|Д|д])?(:?(?P<d_hour>[\d]*)[H|h|Ч|ч])?(:?(?P<d_minute>[\d]*)[M|m|М|м])?(:?(?P<d_second>[\d]*)[S|s|С|с])?";
 
 
 
@@ -50,7 +58,7 @@ pub fn parse_command(command_line : String) -> Command {
 
 
 fn try_parse_at(command_line : &String) -> Option<Command>{
-    let reg = String::from(r"^(at|в)\s*") + MOMENT_REGEX + " (?P<main_text>.*)";
+    let reg = String::from(r"^(at|в)\s*") + MOMENT_REGEX + r" (?P<main_text>.*)";
     let time_format = Regex::new(&reg[..]).unwrap();
 
     let date_captures = time_format.captures(command_line);
@@ -73,7 +81,7 @@ fn try_parse_at(command_line : &String) -> Option<Command>{
 }
 
 fn try_parse_for(command_line : &String) -> Option<Command>{
-    let reg = String::from("^") + DURATION_REGEX + "(?P<divider> )(?P<main_text>.*)";
+    let reg = String::from("^") + DURATION_REGEX + r"(?P<divider> )(?P<main_text>.*)";
     let reg = Regex::new(&reg[..]).unwrap();
 
     let capture = reg.captures(command_line);
@@ -94,99 +102,62 @@ fn try_parse_for(command_line : &String) -> Option<Command>{
         ))
 }
 
-// fn try_parse_for(command_line : &String) -> Option<Command>{
-//     let reg_main    = Regex::new(r"^(?P<spec>[\d|D|d|Д|д|H|h|Ч|ч|M|m|М|м|S|s|С|с]*)(?P<divider> )(?P<main_text>.*)").unwrap();
-
-//     let reg_day     = r"(?P<days>[\d]*)[D|d|Д|д]";
-//     let reg_hour    = r"(?P<hours>[\d]*)[H|h|Ч|ч]";
-//     let reg_min     = r"(?P<minuts>[\d]*)[M|m|М|м]";
-//     let reg_sec     = r"(?P<seconds>[\d]*)[S|s|С|с]";
-
-    
-    
-//     let caps = reg_main.captures(command_line);
-//     if caps.is_none() {
-//         return None;
-//     }
-//     let caps = caps.unwrap();
-//     let spec = caps.name("spec").unwrap().as_str();
-//     let text = caps.name("main_text").unwrap().as_str();
-
-//     let days    = get_first_regex_group_as_u32(reg_day,  spec);
-//     let hours   = get_first_regex_group_as_u32(reg_hour, spec);
-//     let minutes = get_first_regex_group_as_u32(reg_min,  spec);
-//     let seconds = get_first_regex_group_as_u32(reg_sec,  spec);
-
-//     if days == 0 && hours == 0 && minutes == 0 && seconds == 0 {
-//         return None;
-//     }
-
-//     // TODO: should we a better way to do this
-//     let dt = chrono::Duration::seconds((days as i64) * (60*60*24) 
-//                                     + (hours as i64) * (60*60) 
-//                                     + (minutes as i64) * 60 
-//                                     + (seconds as i64)
-//                                     );
-
-//     let event_time = Utc::now() + dt;
-
-//     Some(Command::OneTimeEvent(OneTimeEventImpl 
-//             { event_text : String::from(text)
-//             , event_time : event_time } 
-//         ))
-// }
-
 
 fn try_parse_rep(command_line: &String) -> Option<Command> {
-    None
+    let reg = String::from("^") + r"rep\s*" + MOMENT_REGEX 
+                                + r"\s*"    + DURATION_REGEX 
+                                + r"(?P<divider> )(?P<main_text>.*)";
+    let reg = Regex::new(&reg[..]).unwrap();
+
+    let capture = reg.captures(command_line);
+    if capture.is_none(){
+        return None;
+    }
+    let capture = capture.unwrap();
+
+    let text = capture.name("main_text").unwrap().as_str();
+    let time = get_datetime_from_capture(&capture);
+    let dt = get_duration_from_capture(&capture);
+    if dt.is_none() {
+        return None;
+    }
+    
+    Some(Command::RepetitiveEvent(RepetitiveEventImpl
+        {
+            event_start_time : time,
+            event_wait_time : dt.unwrap(),
+            event_text : String::from(text),
+        }
+    ))
 }
 
 
-// fn get_first_regex_group_as_u32(reg : &str, text : &str) -> u32{
-//     let reg = Regex::new(reg).expect("get_first_regex_group_as_u32: wrong regex string");
-//     let number = match reg.captures(text){
-//         None => "0",
-//         Some(d) => d.get(1)
-//             .expect("get_first_regex_group_as_u32: expect regex string with at least 1 group")
-//             .as_str(), 
-//     };
-//     number.parse().unwrap_or(0)
-// }
-
-
 fn get_duration_from_capture(cap: &Captures) -> Option<chrono::Duration>{
-    let day:    i64 = cap.name("day").map_or("0", |c| c.as_str() ).parse().unwrap();
-    let hour:   i64 = cap.name("hour").map_or("0", |c| c.as_str() ).parse().unwrap();
-    let minute: i64 = cap.name("minute").map_or("0", |c| c.as_str() ).parse().unwrap();
-    let second: i64 = cap.name("second").map_or("0", |c| c.as_str() ).parse().unwrap();
+    let day:    i64 = cap.name("d_day").map_or    (0, |c| c.as_str().parse().unwrap() );
+    let hour:   i64 = cap.name("d_hour").map_or   (0, |c| c.as_str().parse().unwrap() );
+    let minute: i64 = cap.name("d_minute").map_or (0, |c| c.as_str().parse().unwrap() );
+    let second: i64 = cap.name("d_second").map_or (0, |c| c.as_str().parse().unwrap() );
 
     if day == 0 && hour == 0 && minute == 0 && second == 0 {
         return None;
     }
 
-    Some(chrono::Duration::seconds((day as i64) * (60*60*24) 
-                                + (hour as i64) * (60*60) 
-                                + (minute as i64) * 60 
-                                + (second as i64)))
+    Some(chrono::Duration::seconds(day * (60*60*24) 
+                                 + hour * (60*60) 
+                                 + minute * 60 
+                                 + second))
 }
 
 
 fn get_datetime_from_capture(cap: &Captures) -> DateTime<Utc>{
-    let day = cap.name("day").unwrap().as_str().parse().unwrap();
-    let hour = cap.name("hour").unwrap().as_str().parse().unwrap();
-    let minute = cap.name("minute").unwrap().as_str().parse().unwrap();
-
     let now = Utc::now();
 
-    let month = match cap.name("month"){
-        None => now.month(),
-        Some(m) => m.as_str().parse().unwrap(),
-    };
+    let day = cap.name("m_day").unwrap().as_str().parse().unwrap();
+    let hour = cap.name("m_hour").unwrap().as_str().parse().unwrap();
+    let minute = cap.name("m_minute").unwrap().as_str().parse().unwrap();
 
-    let year = match cap.name("year"){
-        None => now.year(),
-        Some(m) => m.as_str().parse().unwrap(),
-    };
+    let month = cap.name("m_month").map_or(now.month(), |c| c.as_str().parse().unwrap());
+    let year = cap.name("m_year").map_or(now.year(), |c| c.as_str().parse().unwrap());
     
     Utc.ymd(year, month, day).and_hms(hour, minute, 0)
 }

@@ -1,4 +1,4 @@
-use command::{Command, OneTimeEventImpl};
+use command::{Command, OneTimeEventImpl, RepetitiveEventImpl};
 use chrono::prelude::*;
 use rusqlite::Connection;
 
@@ -22,7 +22,8 @@ impl DataBase {
     pub fn put(&mut self, value: Command) {
         match value {
             Command::BadCommand => warn!("Can't put BadCommand in database"),
-            Command::OneTimeEvent(e) => self.put_one_time_event(&e),
+            Command::OneTimeEvent(ev) => self.put_one_time_event(&ev),
+            Command::RepetitiveEvent(ev) => self.put_repetitive_event(&ev),
         }
     }
 
@@ -89,6 +90,10 @@ impl DataBase {
             error!("Can't insert one time event in db. Reasone: {}", res.unwrap_err());
         }
         // self.conn.execute(INSERT_ONE_TIME_EVENT, &[&command.event_text, &command.event_time]);
+    }
+
+    fn put_repetitive_event(&mut self, command: &RepetitiveEventImpl){
+
     }
 }
 
