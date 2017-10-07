@@ -1,5 +1,6 @@
 use chrono::prelude::*;
 use std::thread;
+use std::time;
 
 use command::*;
 use database::DataBase;
@@ -35,7 +36,7 @@ impl Engine {
         info!("Start engine loop");
         while !self.stop_loop {
             self.tick();
-            thread::sleep_ms(1000);
+            thread::sleep(time::Duration::from_millis(1000));
         }
     }
 
