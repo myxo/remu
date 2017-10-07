@@ -143,7 +143,7 @@ fn setup_logging(verbosity: u64, console_output_enabled: bool) -> Result<(), fer
                                         message))
             } else {
                 out.finish(format_args!("[{}][{}][{}] {}",
-                                        chrono::Local::now().format("%H:%M"),
+                                        chrono::Local::now().format("%H:%M:%S"),
                                         record.target(),
                                         record.level(),
                                         message))

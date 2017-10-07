@@ -93,7 +93,17 @@ impl Engine {
     }
 
     fn process_repetitive_event_command(&mut self, c: RepetitiveEventImpl) -> String {
-        String::from("Not implemented yet")
+        let mut return_string = self.format_return_message_header(&c.event_start_time);
+        return_string.push('\n');
+        return_string.push_str(&c.event_text);
+        self.data_base.put(Command::RepetitiveEvent(c));
+        self.next_wakeup = self.data_base.get_nearest_wakeup();
+        
+        // delete newline char to write to log
+        let tmp_string = str::replace(&return_string[..], "\n", " ");
+        info!("Successfully process command, return string - <{}>", tmp_string);
+
+        return_string
     }
 
     fn on_one_time_event(&self, event: OneTimeEventImpl){

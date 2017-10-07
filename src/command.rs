@@ -34,8 +34,6 @@ const DURATION_REGEX: &str =
 
 pub fn parse_command(command_line : String) -> Command {
     let command_line = String::from(command_line.trim());
-    debug!("parse incoming text: {}", command_line);
-
     let mut result;
     result = try_parse_for(&command_line);
     if result.is_some() {
@@ -115,8 +113,11 @@ fn try_parse_rep(command_line: &String) -> Option<Command> {
     }
     let capture = capture.unwrap();
 
+    const DEFAULT_TZ : i64 = -3;
+    let tz_offset = chrono::Duration::seconds(DEFAULT_TZ * 60 * 60);
+
     let text = capture.name("main_text").unwrap().as_str();
-    let time = get_datetime_from_capture(&capture);
+    let time = get_datetime_from_capture(&capture) + tz_offset;
     let dt = get_duration_from_capture(&capture);
     if dt.is_none() {
         return None;
@@ -272,6 +273,30 @@ mod tests {
                 _ => panic!("Wrong command type")
             };
         }
+    }
+
+    #[test]
+    fn parse_rep_general() {
+        let command = String::from("rep 06-10 10.00 5m");
+        let text = "test rep";
+        let command_text = command + " " + text;
+        let now = Utc::now();
+        let t = Utc.ymd(now.year(), 10, 6).and_hms(10-3, 0, 0);
+        let dt = chrono::Duration::seconds((0 as i64) * (60*60*24)  // days
+                                        + (0 as i64) * (60*60)      // hours
+                                        + (5 as i64) * 60           // minutes
+                                        + (0 as i64)                // seconds
+                                        );
+        let result = try_parse_rep(&command_text);
+        assert!(result.is_some());
+        match result.unwrap(){
+            RepetitiveEvent(res) => {
+                assert_eq!(res.event_start_time, t);
+                assert_eq!(res.event_wait_time, dt);
+                assert_eq!(res.event_text, text);
+            },
+            _ => panic!("Wrong command type")
+        };
     }
 
 
