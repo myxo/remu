@@ -60,16 +60,7 @@ impl DataBase {
 
         if parent_id != -1 {
             let event = self.conn.query_row(SQL_SELECT_REP_BY_ID, &[&parent_id], |row| { 
-                let now = Utc::now();
-                let mut event_time = Utc.timestamp(row.get(2), 0);
-                let dt = chrono::Duration::seconds(row.get(3));
-                while event_time < now {
-                    event_time =  event_time + dt;
-                }
-                OneTimeEventImpl{
-                    event_text: row.get(1),
-                    event_time: event_time,
-                }
+                get_nearest_active_event_from_repetitive_params(row.get(2), row.get(3), row.get(1))
             });
             let event = event.unwrap();
             let res = self.conn.execute(SQL_INSERT_ACTIVE_EVENT, &[&event.event_text, &event.event_time.timestamp(), &parent_id]);
@@ -98,12 +89,10 @@ impl DataBase {
 
         let mut stmt = self.conn.prepare(SQL_SELECT_ALL_ACTIVE_EVENT_LIMIT).expect("error in sql connection prepare");
         let command_iter = stmt.query_map(&[], |row| {
-            let c = Command::OneTimeEvent( OneTimeEventImpl {
+            Command::OneTimeEvent( OneTimeEventImpl {
                 event_text: row.get(1), 
                 event_time: Utc.timestamp(row.get(2), 0),
-            });
-
-            c
+            })
         }).expect("error in query map");
 
         for command in command_iter {
@@ -132,13 +121,34 @@ impl DataBase {
         }
 
         let id = self.conn.last_insert_rowid();
-        let event_time = (command.event_start_time + command.event_wait_time).timestamp();
-        let res = self.conn.execute(SQL_INSERT_ACTIVE_EVENT, &[&command.event_text, &event_time, &id]);
+        let active_event = get_nearest_active_event_from_repetitive_params(
+                command.event_start_time.timestamp(), 
+                command.event_wait_time.num_seconds(), 
+                command.event_text.clone());
+
+        let res = self.conn.execute(SQL_INSERT_ACTIVE_EVENT, &[&active_event.event_text, &active_event.event_time.timestamp(), &id]);
         if res.is_err() {
             error!("Can't insert one time event in db. Reasone: {}", res.unwrap_err());
         }
     }
-}
+
+} // impl DataBase 
+
+
+fn get_nearest_active_event_from_repetitive_params(start_time: i64, wait_time: i64, text: String) -> OneTimeEventImpl{
+        let now = Utc::now();
+        let wait_time = if wait_time < 0 {1} else {wait_time}; // TODO: make propper error handling
+        let dt = chrono::Duration::seconds(wait_time);
+        let mut event_time = Utc.timestamp(start_time, 0);
+
+        while event_time < now {
+            event_time =  event_time + dt;
+        }
+        OneTimeEventImpl{
+            event_text: text,
+            event_time: event_time,
+        }
+    }
 
 
 // SQL one time events --------------------------------------------
