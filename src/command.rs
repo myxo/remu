@@ -24,8 +24,14 @@ pub struct RepetitiveEventImpl{
 }
 
 
-const MOMENT_REGEX: &str = 
-    r"(?P<m_day>[\d]*)(?:-(?P<m_month>[\d]*))?(?:-(?P<m_year>[\d]*))? (?P<m_hour>[\d]*).(?P<m_minute>[\d]*)";
+const MOMENT_DAY_REGEX: &str = 
+    r"(?:(?P<m_day>[\d]+))?(?:-(?P<m_month>[\d]+))?(?:-(?P<m_year>[\d]+))?";
+
+const MOMENT_TIME_REGEX: &str = 
+    r"(?P<m_hour>[\d]+)(?:.(?P<m_minute>[\d]+))?";
+
+// const MOMENT_REGEX: &str = 
+    // MOM
 
 const DURATION_REGEX: &str = 
     r"(:?(?P<d_day>[\d]*)[D|d|Д|д])?(:?(?P<d_hour>[\d]*)[H|h|Ч|ч])?(:?(?P<d_minute>[\d]*)[M|m|М|м])?(:?(?P<d_second>[\d]*)[S|s|С|с])?";
@@ -56,10 +62,15 @@ pub fn parse_command(command_line : String) -> Command {
 
 
 fn try_parse_at(command_line : &String) -> Option<Command>{
-    let reg = String::from(r"^(at|в)\s*") + MOMENT_REGEX + r" (?P<main_text>.*)";
+    // let reg = String::from(r"^(at|в)\s*") + MOMENT_REGEX + r" (?P<main_text>.*)";
+    let reg = String::from(r"^") + MOMENT_DAY_REGEX + r"\s*(at|в)\s*" + MOMENT_TIME_REGEX + r" (?P<main_text>.*)";
     let time_format = Regex::new(&reg[..]).unwrap();
+    println!("reg = {}", reg);
+    println!("str = {}", command_line);
 
     let date_captures = time_format.captures(command_line);
+
+    println!("cap = {:?}", date_captures);
 
     if date_captures.is_none() {
         return None;
@@ -69,6 +80,8 @@ fn try_parse_at(command_line : &String) -> Option<Command>{
 
     const DEFAULT_TZ : i64 = -3;
     let dt = chrono::Duration::seconds(DEFAULT_TZ * 60 * 60);
+    
+
     let d = get_datetime_from_capture(&date_captures) + dt;
 
     Some(Command::OneTimeEvent
@@ -102,8 +115,9 @@ fn try_parse_for(command_line : &String) -> Option<Command>{
 
 
 fn try_parse_rep(command_line: &String) -> Option<Command> {
-    let reg = String::from("^") + r"rep\s*" + MOMENT_REGEX 
-                                + r"\s*"    + DURATION_REGEX 
+    let reg = String::from("^") + r"rep\s*" + MOMENT_DAY_REGEX 
+                                + r"\s+"    + MOMENT_TIME_REGEX
+                                + r"\s+"    + DURATION_REGEX 
                                 + r"(?P<divider> )(?P<main_text>.*)";
     let reg = Regex::new(&reg[..]).unwrap();
 
@@ -112,6 +126,7 @@ fn try_parse_rep(command_line: &String) -> Option<Command> {
         return None;
     }
     let capture = capture.unwrap();
+
 
     const DEFAULT_TZ : i64 = -3;
     let tz_offset = chrono::Duration::seconds(DEFAULT_TZ * 60 * 60);
@@ -153,12 +168,12 @@ fn get_duration_from_capture(cap: &Captures) -> Option<chrono::Duration>{
 fn get_datetime_from_capture(cap: &Captures) -> DateTime<Utc>{
     let now = Utc::now();
 
-    let day = cap.name("m_day").unwrap().as_str().parse().unwrap();
-    let hour = cap.name("m_hour").unwrap().as_str().parse().unwrap();
-    let minute = cap.name("m_minute").unwrap().as_str().parse().unwrap();
-
-    let month = cap.name("m_month").map_or(now.month(), |c| c.as_str().parse().unwrap());
-    let year = cap.name("m_year").map_or(now.year(), |c| c.as_str().parse().unwrap());
+    let day     = cap.name("m_day").map_or(now.day(),       |c| c.as_str().parse().unwrap());
+    let month   = cap.name("m_month").map_or(now.month(),   |c| c.as_str().parse().unwrap());
+    let year    = cap.name("m_year").map_or(now.year(),     |c| c.as_str().parse().unwrap());
+    let minute  = cap.name("m_minute").map_or(now.minute(), |c| c.as_str().parse().unwrap());
+    
+    let hour    = cap.name("m_hour").unwrap().as_str().parse().unwrap();
     
     Utc.ymd(year, month, day).and_hms(hour, minute, 0)
 }
@@ -237,10 +252,9 @@ mod tests {
     #[test]
     fn parse_at_tests() {
         {
-            let command = String::from("24-10 18:30");
+            let command = String::from("24-10 at 18.30");
             let text = "some text";
-            let mut command_text = command + " " + text;
-            command_text.insert_str(0, "at ");
+            let command_text = command + " " + text;
             let now = Utc::now();
             let t = Utc.ymd(now.year(), 10, 24).and_hms(18-3, 30, 0);
 
@@ -256,12 +270,45 @@ mod tests {
         }
 
         {
-            let command = String::from("24 18:30");
+            let command = String::from("24 at 18.30");
             let text = "some text";
-            let mut command_text = command + " " + text;
-            command_text.insert_str(0, "at ");
+            let command_text = command + " " + text;
             let now = Utc::now();
             let t = Utc.ymd(now.year(), now.month(), 24).and_hms(18-3, 30, 0);
+
+            let result = try_parse_at(&command_text);
+            assert!(result.is_some());
+            match result.unwrap(){
+                OneTimeEvent(res) => {
+                    assert_eq!(res.event_text, text);
+                    assert_eq!(res.event_time, t);
+                },
+                _ => panic!("Wrong command type")
+            };
+        }
+        {
+            let command = String::from("at 18.30");
+            let text = "some text";
+            let command_text = command + " " + text;
+            let now = Utc::now();
+            let t = Utc.ymd(now.year(), now.month(), now.day()).and_hms(18-3, 30, 0);
+
+            let result = try_parse_at(&command_text);
+            assert!(result.is_some());
+            match result.unwrap(){
+                OneTimeEvent(res) => {
+                    assert_eq!(res.event_text, text);
+                    assert_eq!(res.event_time, t);
+                },
+                _ => panic!("Wrong command type")
+            };
+        }
+        {
+            let command = String::from("at 18");
+            let text = "some text";
+            let command_text = command + " " + text;
+            let now = Utc::now();
+            let t = Utc.ymd(now.year(), now.month(), now.day()).and_hms(18-3, now.minute(), 0);
 
             let result = try_parse_at(&command_text);
             assert!(result.is_some());
