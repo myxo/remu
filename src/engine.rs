@@ -1,4 +1,5 @@
 use chrono::prelude::*;
+use chrono;
 use std::thread;
 use std::time;
 
@@ -136,11 +137,13 @@ impl Engine {
     pub fn get_active_event_list(&self) -> Vec<String> {
         let mut result = Vec::new();
         let command_vector = self.data_base.get_all_active_events();
+        const DEFAULT_TZ: i64 = 3;
+        let dt = chrono::Duration::seconds(DEFAULT_TZ * 60 * 60);
         for command in command_vector {
             match command {
                 Command::OneTimeEvent(c) => {
                     let text: String = c.event_text.chars().take(40).collect();
-                    let date: String = c.event_time.format("%c").to_string();
+                    let date: String = (c.event_time + dt).format("%c").to_string();
                     result.push(format!("{} : {}", date, text));
                 }
                 Command::BadCommand => {}
