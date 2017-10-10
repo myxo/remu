@@ -9,5 +9,5 @@ else
     cargo build && \
     cp target/debug/libremu_backend.so . -v && \
     echo 'Everething is ok. Running bot now.' && \
-    python3 remu.py --verbose;
+    RUST_BACKTRACE=1 python3 remu.py --verbose;
 fi
