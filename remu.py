@@ -14,6 +14,8 @@ token = f.read()
 f.close()
 bot = telebot.TeleBot(token)
 chat_id = 0
+rep_id_list = [] # all aroun this var is unsafe now TODO
+rep_event_dict = {}
 
 # @bot.message_handler(content_types=['document', 'audio'])
 # def handle_docs_audio(message):
@@ -22,11 +24,31 @@ chat_id = 0
 #     with open(message.document.file_name, 'wb') as f:
 #         f.write(file)
 
-@bot.message_handler(commands=['list', 'help'])
+@bot.message_handler(commands=['list'])
 def handle_list(message):
     l = engine.get_active_events()
     text = '\n'.join(l) if l else 'No current active event'
     bot.send_message(chat_id, text)
+
+
+@bot.message_handler(commands=['delete_rep'])
+def handle_rep_list(message):
+    l = engine.get_rep_events()
+    global rep_id_list
+    global rep_event_dict
+
+    if not l:
+        bot.send_message(message.chat.id, 'No current rep event')
+        return
+
+    [text_list, rep_id_list] = list(zip(*l))
+    rep_event_dict[message.chat.id] = rep_id_list
+
+    text = [ str(i+1) + ") " + key for i, key in enumerate(text_list)]
+    markup = telebot.types.ForceReply(selective=False)
+    bot.send_message(message.chat.id, text, reply_markup=markup)
+    bot.register_next_step_handler(message, delete_rep_event)
+
 
 @bot.message_handler(content_types=["text"])
 def send_to_engine(message):
@@ -79,6 +101,17 @@ def read_chat_id():
 
 def callback(text):
     send_message(text)
+
+
+def delete_rep_event(message):
+    chat_id = message.chat.id
+    event_id = message.text
+    if not event_id.isdigit():
+        msg = bot.reply_to(message, 'You should write number')
+        bot.register_next_step_handler(message, delete_rep_event)
+        return
+    del_id = rep_event_dict[message.chat.id][int(event_id)-1]
+    engine.del_rep_event(del_id)
 
 if __name__ == '__main__':
     # engine.register_action_callback( lambda text: bot.send_message(chat_id, text))

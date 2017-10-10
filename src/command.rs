@@ -65,12 +65,9 @@ fn try_parse_at(command_line : &String) -> Option<Command>{
     // let reg = String::from(r"^(at|в)\s*") + MOMENT_REGEX + r" (?P<main_text>.*)";
     let reg = String::from(r"^") + MOMENT_DAY_REGEX + r"\s*(at|в)\s*" + MOMENT_TIME_REGEX + r" (?P<main_text>.*)";
     let time_format = Regex::new(&reg[..]).unwrap();
-    println!("reg = {}", reg);
-    println!("str = {}", command_line);
 
     let date_captures = time_format.captures(command_line);
 
-    println!("cap = {:?}", date_captures);
 
     if date_captures.is_none() {
         return None;

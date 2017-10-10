@@ -32,7 +32,9 @@ py_module_initializer!(libremu_backend,
         m.add(py, "stop", py_fn!(py, stop()))?;
         m.add(py, "handle_text_message", py_fn!(py, handle_text_message(message: &str)))?;
         m.add(py, "get_active_events", py_fn!(py, get_active_events()))?;
+        m.add(py, "get_rep_events", py_fn!(py, get_rep_events()))?;
         m.add(py, "register_callback", py_fn!(py, register_callback(obj: PyObject)))?;
+        m.add(py, "del_rep_event", py_fn!(py, del_rep_event(event_id: i64)))?;
 
         Ok(())
     });
@@ -76,6 +78,21 @@ fn get_active_events(_py : Python) -> PyResult<Vec<String>>{
         out = ENG.as_mut().expect("initialize engine!").get_active_event_list();
     }
     Ok(out)
+}
+
+fn get_rep_events(_py : Python) -> PyResult<Vec<(String, i64)>>{
+    let out;
+    unsafe{
+        out = ENG.as_mut().expect("initialize engine!").get_rep_event_list();
+    }
+    Ok(out)
+}
+
+fn del_rep_event(_py: Python, event_id: i64) -> PyResult<(i64)> {
+    unsafe{
+        ENG.as_mut().expect("initialize engine!").delete_rep_event(event_id);
+    }
+    Ok(64)
 }
 
 fn engine_callback(text: String){

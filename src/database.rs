@@ -103,6 +103,33 @@ impl DataBase {
     }
 
 
+    pub fn get_all_rep_events(&self) -> Vec<(Command, i64)> {
+        let mut result = Vec::new();
+
+        let mut stmt = self.conn.prepare(SQL_SELECT_ALL_REP_LIMIT).expect("error in sql connection prepare");
+        let command_iter = stmt.query_map(&[], |row| {
+            (Command::RepetitiveEvent( RepetitiveEventImpl {
+                event_text: row.get(1), 
+                event_start_time: Utc.timestamp(row.get(2), 0),
+                event_wait_time: chrono::Duration::seconds(row.get(3)),
+                
+            }), row.get(0) ) 
+        }).expect("error in query map");
+
+        for command in command_iter {
+            result.push(command.unwrap());
+        }
+
+        result
+    }
+
+
+    pub fn delete_rep_event(&mut self, event_id: i64){
+        self.conn.execute(SQL_DELETE_FROM_REP_BY_ID, &[&event_id]).expect("Cannot del rep event");
+        self.conn.execute(SQL_DELETE_FROM_ACTIVE_EVENT_BY_PARENT_ID, &[&event_id]).expect("Cannot del rep event");
+    }
+
+
     fn put_one_time_event(&mut self, command: &OneTimeEventImpl){
         let event_time = command.event_time.timestamp();
         let parent_id = -1;
@@ -170,6 +197,9 @@ const SQL_SELECT_ACTIVE_EVENT_BY_TIMESTAMP: &str =
 const SQL_DELETE_FROM_ACTIVE_EVENT_BY_ID: &str =
     "DELETE FROM active_event WHERE id = ?1;";
 
+const SQL_DELETE_FROM_ACTIVE_EVENT_BY_PARENT_ID: &str =
+    "DELETE FROM active_event WHERE parent_id = ?1;";
+
 const SQL_MIN_TIMESTAMP_FROM_ACTIVE_EVENT: &str =
     "SELECT min(event_time) FROM active_event;";
 
@@ -190,18 +220,11 @@ const SQL_CREATE_REP_EVENT_TABLE: &str =
 const SQL_INSERT_REP_EVENT: &str = 
     "INSERT INTO scheduled_event(message_text, event_time, event_wait) VALUES (?1, ?2, ?3);";
 
-// const SQL_SELECT_REP_BY_TIMESTAMP: &str = 
-//     "SELECT id, message_text, event_time, event_wait FROM scheduled_event WHERE event_time = ?1;";
-
 const SQL_SELECT_REP_BY_ID: &str = 
     "SELECT id, message_text, event_time, event_wait FROM scheduled_event WHERE id = ?1;";
 
+const SQL_DELETE_FROM_REP_BY_ID: &str =
+    "DELETE FROM scheduled_event WHERE id = ?1;";
 
-// const SQL_DELETE_FROM_REP_BY_ID: &str =
-//     "DELETE FROM scheduled_event WHERE id = ?1;";
-
-// const SQL_MIN_TIMESTAMP_FROM_REP: &str =
-//     "SELECT min(event_time) FROM scheduled_event;";
-
-// const SQL_SELECT_ALL_REP_LIMIT: &str = 
-//     "SELECT id, message_text, event_time, event_wait FROM scheduled_event ORDER BY event_time LIMIT 20;";
+const SQL_SELECT_ALL_REP_LIMIT: &str = 
+    "SELECT id, message_text, event_time, event_wait FROM scheduled_event ORDER BY event_time LIMIT 20;";

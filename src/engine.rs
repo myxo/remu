@@ -162,4 +162,29 @@ impl Engine {
         }
         result
     }
+
+    pub fn get_rep_event_list(&self) -> Vec<(String, i64)> {
+        let mut result = Vec::new();
+        let command_vector = self.data_base.get_all_rep_events();
+        // const DEFAULT_TZ: i64 = 3;
+        // let dt = chrono::Duration::seconds(DEFAULT_TZ * 60 * 60);
+        for line in command_vector {
+            let id: i64 = line.1;
+            let command = line.0;
+            match command {
+                Command::RepetitiveEvent(ev) => {
+                    let text: String = ev.event_text.chars().take(40).collect();
+                    // let date: String = (ev.event_time + dt).format("%c").to_string();
+                    result.push((format!("{}", text), id));
+                }
+                Command::BadCommand => {}
+                Command::OneTimeEvent(_ev) => {}
+            }
+        }
+        result
+    }
+
+    pub fn delete_rep_event(&mut self, event_id: i64){
+        self.data_base.delete_rep_event(event_id);
+    }
 }
