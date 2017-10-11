@@ -79,7 +79,7 @@ pub const SELECT_ALL_ACTIVE_EVENT_LIMIT: &str =
 
 
 pub const INSERT_REP_EVENT: &str = 
-    "INSERT INTO scheduled_event(event_text, event_time, event_wait) VALUES (?1, ?2, ?3);";
+    "INSERT INTO scheduled_event(event_text, event_time, event_wait, uid) VALUES (?1, ?2, ?3, ?4);";
 
 pub const SELECT_REP_BY_ID: &str = 
     "SELECT id, event_text, event_time, event_wait FROM scheduled_event WHERE id = ?1;";
