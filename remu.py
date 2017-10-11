@@ -13,7 +13,6 @@ f = open('token.id', 'r')
 token = f.read()
 f.close()
 bot = telebot.TeleBot(token)
-chat_id = 0
 rep_id_list = [] # all aroun this var is unsafe now TODO
 rep_event_dict = {}
 
@@ -24,11 +23,18 @@ rep_event_dict = {}
 #     with open(message.document.file_name, 'wb') as f:
 #         f.write(file)
 
+
+@bot.message_handler(commands=['start'])
+def handle_list(message):
+    engine.add_user(message.from_user.id, message.from_user.username, message.chat.id, -3)
+    bot.send_message(message.chat.id, 'Hello! ^_^')
+
+
 @bot.message_handler(commands=['list'])
 def handle_list(message):
     l = engine.get_active_events()
     text = '\n'.join(l) if l else 'No current active event'
-    bot.send_message(chat_id, text)
+    bot.send_message(message.chat.id, text)
 
 
 @bot.message_handler(commands=['delete_rep'])
@@ -52,11 +58,8 @@ def handle_rep_list(message):
 
 @bot.message_handler(content_types=["text"])
 def send_to_engine(message):
-    global chat_id
-    if chat_id != message.chat.id:
-        chat_id = message.chat.id
-        save_chat_id()
-    handle_user_message(message.text)
+    text = engine.handle_text_message(message.from_user.id, message.text)
+    bot.send_message(message.chat.id, text)
 
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -68,12 +71,7 @@ def callback_inline(call):
         bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=call.message.text)
 
 
-def handle_user_message(message_text):
-    text = engine.handle_text_message(message_text)
-    bot.send_message(chat_id, text)
-
-
-def send_message(message_text):
+def send_message(message_text, chat_id):
     keyboard = telebot.types.InlineKeyboardMarkup()
     callback_button_5m = telebot.types.InlineKeyboardButton(text="5m", callback_data="5m")
     callback_button_30m = telebot.types.InlineKeyboardButton(text="30m", callback_data="30m")
@@ -86,25 +84,12 @@ def send_message(message_text):
     bot.send_message(chat_id, message_text, reply_markup=keyboard)
 
 
-def save_chat_id():
-    global chat_id
-    with open('chat.id', 'w') as f_cid:
-        f_cid.write(str(chat_id))
-
-def read_chat_id():
-    global chat_id
-    try:
-        with open('chat.id', 'r') as f_cid:
-            chat_id = f_cid.read()
-    except:
-        chat_id = 0
-
-def callback(text):
-    send_message(text)
+def callback(text, chat_id):
+    send_message(text, chat_id)
 
 
 def delete_rep_event(message):
-    chat_id = message.chat.id
+    # chat_id = message.chat.id
     event_id = message.text
     if not event_id.isdigit():
         msg = bot.reply_to(message, 'You should write number')
@@ -123,7 +108,7 @@ if __name__ == '__main__':
     if args.verbose:
         verbose = True
 
-    read_chat_id()
+    # read_chat_id()
 
     engine.initialize(verbose)
     engine.register_callback(callback)
