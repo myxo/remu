@@ -11,7 +11,7 @@ use database::DataBase;
 pub struct Engine {
     next_wakeup: Option<DateTime<Utc>>,
     data_base: DataBase,
-    callback : Option<(fn(String))>,
+    callback : Option<(fn(String, i64))>,
     stop_loop: bool,
 }
 
@@ -49,10 +49,10 @@ impl Engine {
         let next_wakeup = self.next_wakeup.unwrap();
 
         if Utc::now() > next_wakeup {
-            if let Some(command) = self.data_base.pop(next_wakeup) {
+            if let Some((command, uid)) = self.data_base.pop(next_wakeup) {
                 match command {
-                    Command::OneTimeEvent(ev) => self.on_one_time_event(ev),
-                    Command::RepetitiveEvent(ev) => self.on_repetitive_event(ev),
+                    Command::OneTimeEvent(ev) => self.on_one_time_event(ev, uid),
+                    Command::RepetitiveEvent(ev) => self.on_repetitive_event(ev, uid),
                     Command::BadCommand => warn!("Database::pop return BadCommand"),
                 }
             }
@@ -60,17 +60,17 @@ impl Engine {
         }
     }
 
-    pub fn handle_text_message(&mut self, text_message: &str) -> String {
+    pub fn handle_text_message(&mut self, uid: i64, text_message: &str) -> String {
         info!("Handle text message : {}", text_message);
         let com = parse_command(String::from(text_message));
         match com {
             Command::BadCommand => self.process_bad_command(),
-            Command::OneTimeEvent(ev) => self.process_one_time_event_command(ev),
-            Command::RepetitiveEvent(ev) => self.process_repetitive_event_command(ev),
+            Command::OneTimeEvent(ev) => self.process_one_time_event_command(uid, ev),
+            Command::RepetitiveEvent(ev) => self.process_repetitive_event_command(uid, ev),
         }
     }
 
-    pub fn register_callback(&mut self, f: fn(String)){
+    pub fn register_callback(&mut self, f: fn(String, i64)){
         self.callback = Some(f);
     }
 
@@ -78,11 +78,11 @@ impl Engine {
         String::from("Can't parse input string")
     }
 
-    fn process_one_time_event_command(&mut self, c: OneTimeEventImpl) -> String {
+    fn process_one_time_event_command(&mut self, uid:i64, c: OneTimeEventImpl) -> String {
         let mut return_string = self.format_return_message_header(&c.event_time);
         return_string.push('\n');
         return_string.push_str(&c.event_text);
-        self.data_base.put(Command::OneTimeEvent(c));
+        self.data_base.put(uid, Command::OneTimeEvent(c));
         self.next_wakeup = self.data_base.get_nearest_wakeup();
         
         // delete newline char to write to log
@@ -92,11 +92,11 @@ impl Engine {
         return_string
     }
 
-    fn process_repetitive_event_command(&mut self, c: RepetitiveEventImpl) -> String {
+    fn process_repetitive_event_command(&mut self, uid: i64, c: RepetitiveEventImpl) -> String {
         let mut return_string = self.format_return_message_header(&c.event_start_time);
         return_string.push('\n');
         return_string.push_str(&c.event_text);
-        self.data_base.put(Command::RepetitiveEvent(c));
+        self.data_base.put(uid, Command::RepetitiveEvent(c));
         self.next_wakeup = self.data_base.get_nearest_wakeup();
         
         // delete newline char to write to log
@@ -106,14 +106,14 @@ impl Engine {
         return_string
     }
 
-    fn on_one_time_event(&self, event: OneTimeEventImpl){
+    fn on_one_time_event(&self, event: OneTimeEventImpl, uid: i64){
         info!("Event time, text - <{}>", &event.event_text);
-        (self.callback.unwrap())(event.event_text);
+        (self.callback.unwrap())(event.event_text, uid);
     }
 
-    fn on_repetitive_event(&self, event: RepetitiveEventImpl){
+    fn on_repetitive_event(&self, event: RepetitiveEventImpl, uid: i64){
         info!("Event time, text - <{}>", &event.event_text);
-        (self.callback.unwrap())(event.event_text);
+        (self.callback.unwrap())(event.event_text, uid);
     }
 
     fn format_return_message_header(&self, event_time: &DateTime<Utc>) -> String {
@@ -144,9 +144,9 @@ impl Engine {
         self.stop_loop = true;
     }
 
-    pub fn get_active_event_list(&self) -> Vec<String> {
+    pub fn get_active_event_list(&self, uid: i64) -> Vec<String> {
         let mut result = Vec::new();
-        let command_vector = self.data_base.get_all_active_events();
+        let command_vector = self.data_base.get_all_active_events(uid);
         const DEFAULT_TZ: i64 = 3;
         let dt = chrono::Duration::seconds(DEFAULT_TZ * 60 * 60);
         for command in command_vector {
@@ -163,9 +163,9 @@ impl Engine {
         result
     }
 
-    pub fn get_rep_event_list(&self) -> Vec<(String, i64)> {
+    pub fn get_rep_event_list(&self, uid: i64) -> Vec<(String, i64)> {
         let mut result = Vec::new();
-        let command_vector = self.data_base.get_all_rep_events();
+        let command_vector = self.data_base.get_all_rep_events(uid);
         // const DEFAULT_TZ: i64 = 3;
         // let dt = chrono::Duration::seconds(DEFAULT_TZ * 60 * 60);
         for line in command_vector {
@@ -186,5 +186,9 @@ impl Engine {
 
     pub fn delete_rep_event(&mut self, event_id: i64){
         self.data_base.delete_rep_event(event_id);
+    }
+
+    pub fn add_user(&mut self, uid: i64, username: &str, chat_id: i64, tz: i32){
+        self.data_base.add_user(uid, username, chat_id, tz);
     }
 }

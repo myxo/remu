@@ -12,6 +12,7 @@ extern crate rusqlite;
 mod command;
 pub mod engine;
 mod database;
+mod sql_query;
 
 use engine::Engine;
 
@@ -30,10 +31,11 @@ py_module_initializer!(libremu_backend,
         m.add(py, "initialize", py_fn!(py, initialize(verbose: bool)))?;
         m.add(py, "run", py_fn!(py, run()))?;
         m.add(py, "stop", py_fn!(py, stop()))?;
-        m.add(py, "handle_text_message", py_fn!(py, handle_text_message(message: &str)))?;
-        m.add(py, "get_active_events", py_fn!(py, get_active_events()))?;
-        m.add(py, "get_rep_events", py_fn!(py, get_rep_events()))?;
         m.add(py, "register_callback", py_fn!(py, register_callback(obj: PyObject)))?;
+        m.add(py, "add_user", py_fn!(py, add_user(uid: i64, username: &str, chat_id: i64, tz: i32)))?;
+        m.add(py, "handle_text_message", py_fn!(py, handle_text_message(uid: i64, message: &str)))?;
+        m.add(py, "get_active_events", py_fn!(py, get_active_events(uid: i64)))?;
+        m.add(py, "get_rep_events", py_fn!(py, get_rep_events(uid: i64)))?;
         m.add(py, "del_rep_event", py_fn!(py, del_rep_event(event_id: i64)))?;
 
         Ok(())
@@ -63,27 +65,34 @@ fn stop(_py : Python) -> PyResult<(u64)>{
     Ok((64))
 }
 
-fn handle_text_message(_py : Python, message : &str) -> PyResult<String>{
+fn add_user(_py : Python, uid: i64, username: &str, chat_id: i64, tz: i32) -> PyResult<(u64)>{
+    unsafe {
+        ENG.as_mut().expect("initialize engine!").add_user(uid, username, chat_id, tz);
+    }
+    Ok((64))
+}
+
+fn handle_text_message(_py : Python, uid: i64, message : &str) -> PyResult<String>{
     let out;
     unsafe{
-        out = ENG.as_mut().expect("initialize engine!").handle_text_message(message);
+        out = ENG.as_mut().expect("initialize engine!").handle_text_message(uid, message);
     }
     Ok(out)
 }
 
 
-fn get_active_events(_py : Python) -> PyResult<Vec<String>>{
+fn get_active_events(_py : Python, uid: i64) -> PyResult<Vec<String>>{
     let out;
     unsafe{
-        out = ENG.as_mut().expect("initialize engine!").get_active_event_list();
+        out = ENG.as_mut().expect("initialize engine!").get_active_event_list(uid);
     }
     Ok(out)
 }
 
-fn get_rep_events(_py : Python) -> PyResult<Vec<(String, i64)>>{
+fn get_rep_events(_py : Python, uid: i64) -> PyResult<Vec<(String, i64)>>{
     let out;
     unsafe{
-        out = ENG.as_mut().expect("initialize engine!").get_rep_event_list();
+        out = ENG.as_mut().expect("initialize engine!").get_rep_event_list(uid);
     }
     Ok(out)
 }
@@ -95,12 +104,12 @@ fn del_rep_event(_py: Python, event_id: i64) -> PyResult<(i64)> {
     Ok(64)
 }
 
-fn engine_callback(text: String){
+fn engine_callback(text: String, uid: i64){
     unsafe{
         if CALLBACK.is_some() {
             let gil = Python::acquire_gil();
             let py = gil.python();
-            let py_turple = PyTuple::new(py, &[text.to_py_object(py).into_object()]);
+            let py_turple = PyTuple::new(py, &[text.to_py_object(py).into_object(), uid.to_py_object(py).into_object(),]);
             let _res = CALLBACK.as_mut().unwrap().call(py, py_turple, None);
         }
     }
