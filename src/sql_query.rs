@@ -52,6 +52,9 @@ pub const CREATE_GROUP_ITEM_TABLE: &str =
 pub const INSERT_USER: &str =
     "INSERT INTO user(uid, username, chat_id, timezone) VALUES (?1, ?2, ?3, ?4);";
 
+pub const GET_USER_TIMEZONE: &str = 
+    "SELECT timezone FROM user WHERE uid = ?1;";
+
 // SQL one time events --------------------------------------------
 
 

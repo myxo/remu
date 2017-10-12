@@ -136,6 +136,12 @@ impl DataBase {
     }
 
 
+    pub fn get_user_timezone(&self, uid: i64) -> i32{
+        let row = self.conn.query_row(sql_q::GET_USER_TIMEZONE, &[&uid], |row| { row.get(0) });
+        row.unwrap()
+    }
+
+
     fn put_one_time_event(&mut self, uid: i64, command: &OneTimeEventImpl){
         let event_time = command.event_time.timestamp();
         let parent_id = -1;

@@ -62,7 +62,8 @@ impl Engine {
 
     pub fn handle_text_message(&mut self, uid: i64, text_message: &str) -> String {
         info!("Handle text message : {}", text_message);
-        let com = parse_command(String::from(text_message));
+        let tz = self.data_base.get_user_timezone(uid);
+        let com = parse_command(String::from(text_message), tz);
         match com {
             Command::BadCommand => self.process_bad_command(),
             Command::OneTimeEvent(ev) => self.process_one_time_event_command(uid, ev),
@@ -79,7 +80,8 @@ impl Engine {
     }
 
     fn process_one_time_event_command(&mut self, uid:i64, c: OneTimeEventImpl) -> String {
-        let mut return_string = self.format_return_message_header(&c.event_time);
+        let tz = self.data_base.get_user_timezone(uid);
+        let mut return_string = self.format_return_message_header(&c.event_time, tz);
         return_string.push('\n');
         return_string.push_str(&c.event_text);
         self.data_base.put(uid, Command::OneTimeEvent(c));
@@ -93,7 +95,8 @@ impl Engine {
     }
 
     fn process_repetitive_event_command(&mut self, uid: i64, c: RepetitiveEventImpl) -> String {
-        let mut return_string = self.format_return_message_header(&c.event_start_time);
+        let tz = self.data_base.get_user_timezone(uid);
+        let mut return_string = self.format_return_message_header(&c.event_start_time, tz);
         return_string.push('\n');
         return_string.push_str(&c.event_text);
         self.data_base.put(uid, Command::RepetitiveEvent(c));
@@ -116,9 +119,8 @@ impl Engine {
         (self.callback.unwrap())(event.event_text, uid);
     }
 
-    fn format_return_message_header(&self, event_time: &DateTime<Utc>) -> String {
-        const DEFAULT_TZ : i32 = 3;
-        let tz = FixedOffset::east(DEFAULT_TZ * 3600);
+    fn format_return_message_header(&self, event_time: &DateTime<Utc>, tz: i32) -> String {
+        let tz = FixedOffset::west(tz * 3600);
         let t_event = event_time.with_timezone(&tz);
         let t_now = Utc::now().with_timezone(&tz);
 
@@ -147,8 +149,8 @@ impl Engine {
     pub fn get_active_event_list(&self, uid: i64) -> Vec<String> {
         let mut result = Vec::new();
         let command_vector = self.data_base.get_all_active_events(uid);
-        const DEFAULT_TZ: i64 = 3;
-        let dt = chrono::Duration::seconds(DEFAULT_TZ * 60 * 60);
+        let tz = self.data_base.get_user_timezone(uid) as i64;
+        let dt = chrono::Duration::seconds(-tz * 60 * 60);
         for command in command_vector {
             match command {
                 Command::OneTimeEvent(c) => {

@@ -38,7 +38,7 @@ const DURATION_REGEX: &str =
 
 
 
-pub fn parse_command(command_line : String) -> Command {
+pub fn parse_command(command_line : String, user_timezone: i32) -> Command {
     let command_line = String::from(command_line.trim());
     let mut result;
     result = try_parse_for(&command_line);
@@ -46,12 +46,12 @@ pub fn parse_command(command_line : String) -> Command {
         return result.unwrap();
     }
 
-    result = try_parse_at(&command_line);
+    result = try_parse_at(&command_line, user_timezone);
     if result.is_some() {
         return result.unwrap();
     }
 
-    result = try_parse_rep(&command_line);
+    result = try_parse_rep(&command_line, user_timezone);
     if result.is_some() {
         return result.unwrap();
     }
@@ -61,7 +61,7 @@ pub fn parse_command(command_line : String) -> Command {
 }
 
 
-fn try_parse_at(command_line : &String) -> Option<Command>{
+fn try_parse_at(command_line : &String, user_timezone: i32) -> Option<Command>{
     // let reg = String::from(r"^(at|в)\s*") + MOMENT_REGEX + r" (?P<main_text>.*)";
     let reg = String::from(r"^") + MOMENT_DAY_REGEX + r"\s*(at|в)\s*" + MOMENT_TIME_REGEX + r" (?P<main_text>.*)";
     let time_format = Regex::new(&reg[..]).unwrap();
@@ -75,16 +75,13 @@ fn try_parse_at(command_line : &String) -> Option<Command>{
     let date_captures = date_captures.unwrap();
     let text = date_captures.name("main_text").unwrap().as_str();
 
-    const DEFAULT_TZ : i64 = -3;
-    let dt = chrono::Duration::seconds(DEFAULT_TZ * 60 * 60);
-    
-
-    let d = get_datetime_from_capture(&date_captures) + dt;
+    let dt = chrono::Duration::seconds((user_timezone as i64) * 60 * 60);
+    let t = get_datetime_from_capture(&date_captures) + dt;
 
     Some(Command::OneTimeEvent
             (OneTimeEventImpl 
                 { event_text : String::from(text)
-                , event_time : d } 
+                , event_time : t } 
             ))
 }
 
@@ -111,7 +108,7 @@ fn try_parse_for(command_line : &String) -> Option<Command>{
 }
 
 
-fn try_parse_rep(command_line: &String) -> Option<Command> {
+fn try_parse_rep(command_line: &String, user_timezone: i32) -> Option<Command> {
     let reg = String::from("^") + r"rep\s*" + MOMENT_DAY_REGEX 
                                 + r"\s+"    + MOMENT_TIME_REGEX
                                 + r"\s+"    + DURATION_REGEX 
@@ -124,9 +121,7 @@ fn try_parse_rep(command_line: &String) -> Option<Command> {
     }
     let capture = capture.unwrap();
 
-
-    const DEFAULT_TZ : i64 = -3;
-    let tz_offset = chrono::Duration::seconds(DEFAULT_TZ * 60 * 60);
+    let tz_offset = chrono::Duration::seconds((user_timezone as i64) * 60 * 60);
 
     let text = capture.name("main_text").unwrap().as_str();
     let time = get_datetime_from_capture(&capture) + tz_offset;
@@ -255,7 +250,7 @@ mod tests {
             let now = Utc::now();
             let t = Utc.ymd(now.year(), 10, 24).and_hms(18-3, 30, 0);
 
-            let result = try_parse_at(&command_text);
+            let result = try_parse_at(&command_text, -3);
             assert!(result.is_some());
             match result.unwrap(){
                 OneTimeEvent(res) => {
@@ -273,7 +268,7 @@ mod tests {
             let now = Utc::now();
             let t = Utc.ymd(now.year(), now.month(), 24).and_hms(18-3, 30, 0);
 
-            let result = try_parse_at(&command_text);
+            let result = try_parse_at(&command_text, -3);
             assert!(result.is_some());
             match result.unwrap(){
                 OneTimeEvent(res) => {
@@ -290,7 +285,7 @@ mod tests {
             let now = Utc::now();
             let t = Utc.ymd(now.year(), now.month(), now.day()).and_hms(18-3, 30, 0);
 
-            let result = try_parse_at(&command_text);
+            let result = try_parse_at(&command_text, -3);
             assert!(result.is_some());
             match result.unwrap(){
                 OneTimeEvent(res) => {
@@ -307,7 +302,7 @@ mod tests {
             let now = Utc::now();
             let t = Utc.ymd(now.year(), now.month(), now.day()).and_hms(18-3, now.minute(), 0);
 
-            let result = try_parse_at(&command_text);
+            let result = try_parse_at(&command_text, -3);
             assert!(result.is_some());
             match result.unwrap(){
                 OneTimeEvent(res) => {
@@ -331,7 +326,7 @@ mod tests {
                                         + (5 as i64) * 60           // minutes
                                         + (0 as i64)                // seconds
                                         );
-        let result = try_parse_rep(&command_text);
+        let result = try_parse_rep(&command_text, -3);
         assert!(result.is_some());
         match result.unwrap(){
             RepetitiveEvent(res) => {
