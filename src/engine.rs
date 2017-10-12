@@ -144,9 +144,9 @@ impl Engine {
         self.stop_loop = true;
     }
 
-    pub fn get_active_event_list(&self) -> Vec<String> {
+    pub fn get_active_event_list(&self, uid: i64) -> Vec<String> {
         let mut result = Vec::new();
-        let command_vector = self.data_base.get_all_active_events();
+        let command_vector = self.data_base.get_all_active_events(uid);
         const DEFAULT_TZ: i64 = 3;
         let dt = chrono::Duration::seconds(DEFAULT_TZ * 60 * 60);
         for command in command_vector {
@@ -163,9 +163,9 @@ impl Engine {
         result
     }
 
-    pub fn get_rep_event_list(&self) -> Vec<(String, i64)> {
+    pub fn get_rep_event_list(&self, uid: i64) -> Vec<(String, i64)> {
         let mut result = Vec::new();
-        let command_vector = self.data_base.get_all_rep_events();
+        let command_vector = self.data_base.get_all_rep_events(uid);
         // const DEFAULT_TZ: i64 = 3;
         // let dt = chrono::Duration::seconds(DEFAULT_TZ * 60 * 60);
         for line in command_vector {

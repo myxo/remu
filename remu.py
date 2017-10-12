@@ -25,14 +25,14 @@ rep_event_dict = {}
 
 
 @bot.message_handler(commands=['start'])
-def handle_list(message):
+def handle_start(message):
     engine.add_user(message.from_user.id, message.from_user.username, message.chat.id, -3)
     bot.send_message(message.chat.id, 'Hello! ^_^')
 
 
 @bot.message_handler(commands=['list'])
 def handle_list(message):
-    l = engine.get_active_events()
+    l = engine.get_active_events(message.from_user.id)
     text = '\n'.join(l) if l else 'No current active event'
     bot.send_message(message.chat.id, text)
 

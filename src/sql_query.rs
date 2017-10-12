@@ -70,12 +70,11 @@ pub const DELETE_FROM_ACTIVE_EVENT_BY_PARENT_ID: &str =
 pub const MIN_TIMESTAMP_FROM_ACTIVE_EVENT: &str =
     "SELECT min(event_time) FROM active_event;";
 
-pub const SELECT_ALL_ACTIVE_EVENT_LIMIT: &str = 
-    "SELECT id, event_text, event_time FROM active_event ORDER BY event_time LIMIT 20;";
+pub const SELECT_ALL_ACTIVE_EVENT_BY_UID_LIMIT: &str = 
+    "SELECT id, event_text, event_time FROM active_event WHERE uid = ?1 ORDER BY event_time LIMIT 20;";
 
 
 // SQL rep events ------------------------------------------------
-
 
 
 pub const INSERT_REP_EVENT: &str = 
@@ -87,5 +86,5 @@ pub const SELECT_REP_BY_ID: &str =
 pub const DELETE_FROM_REP_BY_ID: &str =
     "DELETE FROM scheduled_event WHERE id = ?1;";
 
-pub const SELECT_ALL_REP_LIMIT: &str = 
-    "SELECT id, event_text, event_time, event_wait FROM scheduled_event ORDER BY event_time LIMIT 20;";
+pub const SELECT_ALL_REP_BY_UID_LIMIT: &str = 
+    "SELECT id, event_text, event_time, event_wait FROM scheduled_event WHERE uid = ?1 ORDER BY event_time LIMIT 20;";

@@ -90,11 +90,11 @@ impl DataBase {
     }
 
 
-    pub fn get_all_active_events(&self) -> Vec<Command> {
+    pub fn get_all_active_events(&self, uid: i64) -> Vec<Command> {
         let mut result = Vec::new();
 
-        let mut stmt = self.conn.prepare(sql_q::SELECT_ALL_ACTIVE_EVENT_LIMIT).expect("error in sql connection prepare");
-        let command_iter = stmt.query_map(&[], |row| {
+        let mut stmt = self.conn.prepare(sql_q::SELECT_ALL_ACTIVE_EVENT_BY_UID_LIMIT).expect("error in sql connection prepare");
+        let command_iter = stmt.query_map(&[&uid], |row| {
             Command::OneTimeEvent( OneTimeEventImpl {
                 event_text: row.get(1), 
                 event_time: Utc.timestamp(row.get(2), 0),
@@ -109,11 +109,11 @@ impl DataBase {
     }
 
 
-    pub fn get_all_rep_events(&self) -> Vec<(Command, i64)> {
+    pub fn get_all_rep_events(&self, uid: i64) -> Vec<(Command, i64)> {
         let mut result = Vec::new();
 
-        let mut stmt = self.conn.prepare(sql_q::SELECT_ALL_REP_LIMIT).expect("error in sql connection prepare");
-        let command_iter = stmt.query_map(&[], |row| {
+        let mut stmt = self.conn.prepare(sql_q::SELECT_ALL_REP_BY_UID_LIMIT).expect("error in sql connection prepare");
+        let command_iter = stmt.query_map(&[&uid], |row| {
             (Command::RepetitiveEvent( RepetitiveEventImpl {
                 event_text: row.get(1), 
                 event_start_time: Utc.timestamp(row.get(2), 0),
