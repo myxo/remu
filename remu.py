@@ -113,13 +113,14 @@ if __name__ == '__main__':
     engine.initialize(verbose)
     engine.register_callback(callback)
     engine.run()
-    try:
-        bot.polling()
-        logging.error("I am down =(")
-    except:
-        logging.error("Try to polling again")
-        bot.polling()
-        logging.error("After pooling again")
-        send_message("I've been down and now should work fine")
+    while True:
+        try:
+            bot.polling()
+            logging.error("I am down =(")
+        except:
+            logging.error("Try to polling again")
+            bot.polling()
+            logging.error("After pooling again")
+            send_message("I've been down and now should work fine")
 
     engine.stop()
