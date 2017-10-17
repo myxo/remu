@@ -116,7 +116,9 @@ if __name__ == '__main__':
     engine.run()
 
     while True:
-        bot.polling()
-    except:
-        logging.error("I am down =(")
+        try:
+            bot.polling()
+        except:
+            logging.error("I am down =(")
+            
     engine.stop()
