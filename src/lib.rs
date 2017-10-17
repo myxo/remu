@@ -44,7 +44,7 @@ py_module_initializer!(libremu_backend,
 fn initialize(_py : Python, verbose: bool) -> PyResult<(bool)>{
     setup_logging(3, verbose).expect("ERROR in logging initialization.");
     unsafe {
-        ENG = Some(Engine::new());
+        ENG = Some(Engine::new(false));
     }
     Ok((true))
 }

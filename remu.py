@@ -39,7 +39,7 @@ def handle_list(message):
 
 @bot.message_handler(commands=['delete_rep'])
 def handle_rep_list(message):
-    l = engine.get_rep_events()
+    l = engine.get_rep_events(message.chat.id)
     global rep_id_list
     global rep_event_dict
 
@@ -58,7 +58,7 @@ def handle_rep_list(message):
 
 @bot.message_handler(content_types=["text"])
 def send_to_engine(message):
-    text = engine.handle_text_message(message.from_user.id, message.text)
+    text = engine.handle_text_message(message.chat.id, message.text)
     bot.send_message(message.chat.id, text)
 
 
@@ -66,7 +66,8 @@ def send_to_engine(message):
 def callback_inline(call):
     if call.message:
         if call.data != "Ok":
-            handle_user_message(call.data + " " + call.message.text)
+            call.message.text = call.data + " " + call.message.text
+            send_to_engine(call.message)
         # delete keys
         bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=call.message.text)
 
@@ -113,14 +114,9 @@ if __name__ == '__main__':
     engine.initialize(verbose)
     engine.register_callback(callback)
     engine.run()
-    while True:
-        try:
-            bot.polling()
-            logging.error("I am down =(")
-        except:
-            logging.error("Try to polling again")
-            bot.polling()
-            logging.error("After pooling again")
-            send_message("I've been down and now should work fine")
 
+    while True:
+        bot.polling()
+    except:
+        logging.error("I am down =(")
     engine.stop()

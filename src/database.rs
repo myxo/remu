@@ -9,8 +9,12 @@ pub struct DataBase {
 }
 
 impl DataBase {
-    pub fn new() -> DataBase {
-        let conn = Connection::open("database.db").expect("Cannot connect to sqlite");
+    pub fn new(run_in_memory: bool) -> DataBase {
+        let conn = if run_in_memory {
+            Connection::open_in_memory().expect("Cannot open db in memory")
+        } else { 
+            Connection::open("database.db").expect("Cannot connect to sqlite")
+        };
         conn.execute(sql_q::CREATE_USER_TABLE, &[]).expect("Cannot create user table");
         conn.execute(sql_q::CREATE_ACTIVE_EVENT_TABLE, &[]).expect("Cannot create active_event table");
         conn.execute(sql_q::CREATE_REP_EVENT_TABLE, &[]).expect("Cannot create scheduled_event table");

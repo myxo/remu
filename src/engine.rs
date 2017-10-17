@@ -16,13 +16,13 @@ pub struct Engine {
 }
 
 impl Engine {
-    pub fn new() -> Engine {
+    pub fn new(open_in_memory: bool) -> Engine {
         info!("Initialize engine");
         Engine {
             stop_loop: false,
             next_wakeup: None,
             callback: None,
-            data_base: DataBase::new(),
+            data_base: DataBase::new(open_in_memory),
         }
     }
 
@@ -32,31 +32,11 @@ impl Engine {
         self.loop_thread();
     }
 
-
     fn loop_thread(&mut self) {
         info!("Start engine loop");
         while !self.stop_loop {
             self.tick();
             thread::sleep(time::Duration::from_millis(1000));
-        }
-    }
-
-    fn tick(&mut self) {
-        if self.next_wakeup.is_none() {
-            self.next_wakeup = self.data_base.get_nearest_wakeup();
-            return;
-        }
-        let next_wakeup = self.next_wakeup.unwrap();
-
-        if Utc::now() > next_wakeup {
-            if let Some((command, uid)) = self.data_base.pop(next_wakeup) {
-                match command {
-                    Command::OneTimeEvent(ev) => self.on_one_time_event(ev, uid),
-                    Command::RepetitiveEvent(ev) => self.on_repetitive_event(ev, uid),
-                    Command::BadCommand => warn!("Database::pop return BadCommand"),
-                }
-            }
-            self.next_wakeup = self.data_base.get_nearest_wakeup();
         }
     }
 
@@ -73,6 +53,60 @@ impl Engine {
 
     pub fn register_callback(&mut self, f: fn(String, i64)){
         self.callback = Some(f);
+    }
+
+
+    pub fn stop(&mut self) {
+        info!("Stoping engine");
+        self.stop_loop = true;
+    }
+
+    pub fn get_active_event_list(&self, uid: i64) -> Vec<String> {
+        let mut result = Vec::new();
+        let command_vector = self.data_base.get_all_active_events(uid);
+        let tz = self.data_base.get_user_timezone(uid) as i64;
+        let dt = chrono::Duration::seconds(-tz * 60 * 60);
+        for command in command_vector {
+            match command {
+                Command::OneTimeEvent(c) => {
+                    let text: String = c.event_text.chars().take(40).collect();
+                    let date: String = (c.event_time + dt).format("%c").to_string();
+                    result.push(format!("{} : {}", date, text));
+                }
+                Command::BadCommand => {}
+                Command::RepetitiveEvent(_ev) => {}
+            }
+        }
+        result
+    }
+
+    pub fn get_rep_event_list(&self, uid: i64) -> Vec<(String, i64)> {
+        let mut result = Vec::new();
+        let command_vector = self.data_base.get_all_rep_events(uid);
+        // const DEFAULT_TZ: i64 = 3;
+        // let dt = chrono::Duration::seconds(DEFAULT_TZ * 60 * 60);
+        for line in command_vector {
+            let id: i64 = line.1;
+            let command = line.0;
+            match command {
+                Command::RepetitiveEvent(ev) => {
+                    let text: String = ev.event_text.chars().take(40).collect();
+                    // let date: String = (ev.event_time + dt).format("%c").to_string();
+                    result.push((format!("{}", text), id));
+                }
+                Command::BadCommand => {}
+                Command::OneTimeEvent(_ev) => {}
+            }
+        }
+        result
+    }
+
+    pub fn delete_rep_event(&mut self, event_id: i64){
+        self.data_base.delete_rep_event(event_id);
+    }
+
+    pub fn add_user(&mut self, uid: i64, username: &str, chat_id: i64, tz: i32){
+        self.data_base.add_user(uid, username, chat_id, tz);
     }
 
     fn process_bad_command(&self) -> String {
@@ -141,56 +175,22 @@ impl Engine {
         t_event.format("I'll remind you %B %e at %H:%M").to_string()
     }
 
-    pub fn stop(&mut self) {
-        info!("Stoping engine");
-        self.stop_loop = true;
-    }
-
-    pub fn get_active_event_list(&self, uid: i64) -> Vec<String> {
-        let mut result = Vec::new();
-        let command_vector = self.data_base.get_all_active_events(uid);
-        let tz = self.data_base.get_user_timezone(uid) as i64;
-        let dt = chrono::Duration::seconds(-tz * 60 * 60);
-        for command in command_vector {
-            match command {
-                Command::OneTimeEvent(c) => {
-                    let text: String = c.event_text.chars().take(40).collect();
-                    let date: String = (c.event_time + dt).format("%c").to_string();
-                    result.push(format!("{} : {}", date, text));
-                }
-                Command::BadCommand => {}
-                Command::RepetitiveEvent(_ev) => {}
-            }
+    fn tick(&mut self) {
+        if self.next_wakeup.is_none() {
+            self.next_wakeup = self.data_base.get_nearest_wakeup();
+            return;
         }
-        result
-    }
+        let next_wakeup = self.next_wakeup.unwrap();
 
-    pub fn get_rep_event_list(&self, uid: i64) -> Vec<(String, i64)> {
-        let mut result = Vec::new();
-        let command_vector = self.data_base.get_all_rep_events(uid);
-        // const DEFAULT_TZ: i64 = 3;
-        // let dt = chrono::Duration::seconds(DEFAULT_TZ * 60 * 60);
-        for line in command_vector {
-            let id: i64 = line.1;
-            let command = line.0;
-            match command {
-                Command::RepetitiveEvent(ev) => {
-                    let text: String = ev.event_text.chars().take(40).collect();
-                    // let date: String = (ev.event_time + dt).format("%c").to_string();
-                    result.push((format!("{}", text), id));
+        if Utc::now() > next_wakeup {
+            if let Some((command, uid)) = self.data_base.pop(next_wakeup) {
+                match command {
+                    Command::OneTimeEvent(ev) => self.on_one_time_event(ev, uid),
+                    Command::RepetitiveEvent(ev) => self.on_repetitive_event(ev, uid),
+                    Command::BadCommand => warn!("Database::pop return BadCommand"),
                 }
-                Command::BadCommand => {}
-                Command::OneTimeEvent(_ev) => {}
             }
+            self.next_wakeup = self.data_base.get_nearest_wakeup();
         }
-        result
-    }
-
-    pub fn delete_rep_event(&mut self, event_id: i64){
-        self.data_base.delete_rep_event(event_id);
-    }
-
-    pub fn add_user(&mut self, uid: i64, username: &str, chat_id: i64, tz: i32){
-        self.data_base.add_user(uid, username, chat_id, tz);
     }
 }
