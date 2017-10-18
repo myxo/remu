@@ -163,7 +163,7 @@ fn get_datetime_from_capture(cap: &Captures, tz: i32) -> Option<DateTime<Utc>>{
     let day     = cap.name("m_day").map_or(now.day(),       |c| c.as_str().parse().unwrap());
     let month   = cap.name("m_month").map_or(now.month(),   |c| c.as_str().parse().unwrap());
     let year    = cap.name("m_year").map_or(now.year(),     |c| c.as_str().parse().unwrap());
-    let minute  = cap.name("m_minute").map_or(now.minute(), |c| c.as_str().parse().unwrap());
+    let minute  = cap.name("m_minute").map_or(0,            |c| c.as_str().parse().unwrap());
     
     let hour    = cap.name("m_hour").unwrap().as_str().parse().unwrap();
     
