@@ -76,13 +76,15 @@ fn try_parse_at(command_line : &String, user_timezone: i32) -> Option<Command>{
     let text = date_captures.name("main_text").unwrap().as_str();
 
     let dt = chrono::Duration::seconds((user_timezone as i64) * 60 * 60);
-    let t = get_datetime_from_capture(&date_captures) + dt;
+    if let Some(t) = get_datetime_from_capture(&date_captures){
 
-    Some(Command::OneTimeEvent
-            (OneTimeEventImpl 
-                { event_text : String::from(text)
-                , event_time : t } 
-            ))
+        return Some(Command::OneTimeEvent
+                (OneTimeEventImpl 
+                    { event_text : String::from(text)
+                    , event_time : t + dt} 
+                ));
+    }
+    None 
 }
 
 fn try_parse_for(command_line : &String) -> Option<Command>{
@@ -124,11 +126,12 @@ fn try_parse_rep(command_line: &String, user_timezone: i32) -> Option<Command> {
     let tz_offset = chrono::Duration::seconds((user_timezone as i64) * 60 * 60);
 
     let text = capture.name("main_text").unwrap().as_str();
-    let time = get_datetime_from_capture(&capture) + tz_offset;
+    let time = get_datetime_from_capture(&capture);
     let dt = get_duration_from_capture(&capture);
-    if dt.is_none() {
+    if time.is_none() || dt.is_none(){
         return None;
     }
+    let time = time.unwrap() + tz_offset;
     
     Some(Command::RepetitiveEvent(RepetitiveEventImpl
         {
@@ -157,7 +160,7 @@ fn get_duration_from_capture(cap: &Captures) -> Option<chrono::Duration>{
 }
 
 
-fn get_datetime_from_capture(cap: &Captures) -> DateTime<Utc>{
+fn get_datetime_from_capture(cap: &Captures) -> Option<DateTime<Utc>>{
     let now = Utc::now();
 
     let day     = cap.name("m_day").map_or(now.day(),       |c| c.as_str().parse().unwrap());
@@ -167,7 +170,11 @@ fn get_datetime_from_capture(cap: &Captures) -> DateTime<Utc>{
     
     let hour    = cap.name("m_hour").unwrap().as_str().parse().unwrap();
     
-    Utc.ymd(year, month, day).and_hms(hour, minute, 0)
+    use chrono::offset::LocalResult::Single;
+    if let Single(date) = Utc.ymd_opt(year, month, day) {
+        return date.and_hms_opt(hour, minute, 0);
+    }
+    None
 }
 
 
@@ -311,6 +318,42 @@ mod tests {
                 },
                 _ => panic!("Wrong command type")
             };
+        }
+    }
+
+    #[test]
+    fn parse_wrong_at_tests() {
+        {
+            let command = String::from("30-02 at 18");
+            let text = "some text";
+            let command_text = command + " " + text;
+
+            let result = try_parse_at(&command_text, -3);
+            assert!(result.is_none());
+        }
+        {
+            let command = String::from("30-20 at 18");
+            let text = "some text";
+            let command_text = command + " " + text;
+
+            let result = try_parse_at(&command_text, -3);
+            assert!(result.is_none());
+        }
+        {
+            let command = String::from("at 25");
+            let text = "some text";
+            let command_text = command + " " + text;
+
+            let result = try_parse_at(&command_text, -3);
+            assert!(result.is_none());
+        }
+        {
+            let command = String::from("at 23.60");
+            let text = "some text";
+            let command_text = command + " " + text;
+
+            let result = try_parse_at(&command_text, -3);
+            assert!(result.is_none());
         }
     }
 
