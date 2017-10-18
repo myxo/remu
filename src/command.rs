@@ -75,13 +75,11 @@ fn try_parse_at(command_line : &String, user_timezone: i32) -> Option<Command>{
     let date_captures = date_captures.unwrap();
     let text = date_captures.name("main_text").unwrap().as_str();
 
-    let dt = chrono::Duration::seconds((user_timezone as i64) * 60 * 60);
-    if let Some(t) = get_datetime_from_capture(&date_captures){
-
+    if let Some(t) = get_datetime_from_capture(&date_captures, user_timezone){
         return Some(Command::OneTimeEvent
                 (OneTimeEventImpl 
                     { event_text : String::from(text)
-                    , event_time : t + dt} 
+                    , event_time : t} 
                 ));
     }
     None 
@@ -123,19 +121,16 @@ fn try_parse_rep(command_line: &String, user_timezone: i32) -> Option<Command> {
     }
     let capture = capture.unwrap();
 
-    let tz_offset = chrono::Duration::seconds((user_timezone as i64) * 60 * 60);
-
     let text = capture.name("main_text").unwrap().as_str();
-    let time = get_datetime_from_capture(&capture);
+    let time = get_datetime_from_capture(&capture, user_timezone);
     let dt = get_duration_from_capture(&capture);
-    if time.is_none() || dt.is_none(){
+    if time.is_none() || dt.is_none() {
         return None;
     }
-    let time = time.unwrap() + tz_offset;
     
     Some(Command::RepetitiveEvent(RepetitiveEventImpl
         {
-            event_start_time : time,
+            event_start_time : time.unwrap(),
             event_wait_time : dt.unwrap(),
             event_text : String::from(text),
         }
@@ -160,8 +155,10 @@ fn get_duration_from_capture(cap: &Captures) -> Option<chrono::Duration>{
 }
 
 
-fn get_datetime_from_capture(cap: &Captures) -> Option<DateTime<Utc>>{
-    let now = Utc::now();
+fn get_datetime_from_capture(cap: &Captures, tz: i32) -> Option<DateTime<Utc>>{
+    println!("UTC now: {}", Utc::now());
+    let dt = chrono::Duration::seconds((tz as i64) * 60 * 60);
+    let now = Utc::now() - dt;
 
     let day     = cap.name("m_day").map_or(now.day(),       |c| c.as_str().parse().unwrap());
     let month   = cap.name("m_month").map_or(now.month(),   |c| c.as_str().parse().unwrap());
@@ -172,7 +169,9 @@ fn get_datetime_from_capture(cap: &Captures) -> Option<DateTime<Utc>>{
     
     use chrono::offset::LocalResult::Single;
     if let Single(date) = Utc.ymd_opt(year, month, day) {
-        return date.and_hms_opt(hour, minute, 0);
+        if let Some(datetime) = date.and_hms_opt(hour, minute, 0){
+            return Some(datetime + dt);
+        }
     }
     None
 }
@@ -290,9 +289,9 @@ mod tests {
             let text = "some text";
             let command_text = command + " " + text;
             let now = Utc::now();
-            let t = Utc.ymd(now.year(), now.month(), now.day()).and_hms(18-3, 30, 0);
+            let t = Utc.ymd(now.year(), now.month(), now.day()).and_hms(18, 30, 0);
 
-            let result = try_parse_at(&command_text, -3);
+            let result = try_parse_at(&command_text, 0);
             assert!(result.is_some());
             match result.unwrap(){
                 OneTimeEvent(res) => {
@@ -307,9 +306,9 @@ mod tests {
             let text = "some text";
             let command_text = command + " " + text;
             let now = Utc::now();
-            let t = Utc.ymd(now.year(), now.month(), now.day()).and_hms(18-3, now.minute(), 0);
+            let t = Utc.ymd(now.year(), now.month(), now.day()).and_hms(18, now.minute(), 0);
 
-            let result = try_parse_at(&command_text, -3);
+            let result = try_parse_at(&command_text, 0);
             assert!(result.is_some());
             match result.unwrap(){
                 OneTimeEvent(res) => {
