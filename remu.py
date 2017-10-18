@@ -3,7 +3,7 @@ import logging
 import time
 import threading
 import argparse
-# from datetime import date, time, datetime, timedelta
+import text_data as text
 
 import libremu_backend as engine
 
@@ -24,10 +24,15 @@ rep_event_dict = {}
 #         f.write(file)
 
 
+
 @bot.message_handler(commands=['start'])
 def handle_start(message):
     engine.add_user(message.from_user.id, message.from_user.username, message.chat.id, -3)
     bot.send_message(message.chat.id, 'Hello! ^_^')
+
+@bot.message_handler(commands=['help'])
+def handle_help(message):
+    bot.send_message(message.chat.id, text.main_help_message_ru, parse_mode='Markdown')
 
 
 @bot.message_handler(commands=['list'])
@@ -120,5 +125,5 @@ if __name__ == '__main__':
             bot.polling()
         except:
             logging.error("I am down =(")
-            
+
     engine.stop()
