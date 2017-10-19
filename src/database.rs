@@ -24,7 +24,7 @@ impl DataBase {
         DataBase { conn: conn }
     }
 
-    pub fn add_user(&mut self, uid: i64, username: &str, chat_id: i64, tz: i32){
+    pub fn add_user(&mut self, uid: i64, username: &str, chat_id: i64, tz: i32) -> bool{
         let res = self.conn.execute(sql_q::INSERT_USER, &[&uid, 
                                                           &username, 
                                                           &chat_id,
@@ -32,14 +32,16 @@ impl DataBase {
                                                         ]);
         if res.is_err() {
             error!("Can't insert user in db. Reasone: {}", res.unwrap_err());
+            return false;
         }
+        true
     }
 
-    pub fn put(&mut self, uid: i64, value: Command) {
+    pub fn put(&mut self, uid: i64, value: Command) -> bool{
         match value {
-            Command::BadCommand => warn!("Can't put BadCommand in database"),
-            Command::OneTimeEvent(ev) => self.put_one_time_event(uid, &ev),
-            Command::RepetitiveEvent(ev) => self.put_repetitive_event(uid, &ev),
+            Command::BadCommand => { warn!("Can't put BadCommand in database"); return false; }
+            Command::OneTimeEvent(ev) => return self.put_one_time_event(uid, &ev),
+            Command::RepetitiveEvent(ev) => return self.put_repetitive_event(uid, &ev),
         }
     }
 
@@ -134,9 +136,10 @@ impl DataBase {
     }
 
 
-    pub fn delete_rep_event(&mut self, event_id: i64){
+    pub fn delete_rep_event(&mut self, event_id: i64) -> bool {
         self.conn.execute(sql_q::DELETE_FROM_REP_BY_ID, &[&event_id]).expect("Cannot del rep event");
         self.conn.execute(sql_q::DELETE_FROM_ACTIVE_EVENT_BY_PARENT_ID, &[&event_id]).expect("Cannot del rep event");
+        true
     }
 
 
@@ -146,21 +149,24 @@ impl DataBase {
     }
 
 
-    fn put_one_time_event(&mut self, uid: i64, command: &OneTimeEventImpl){
+    fn put_one_time_event(&mut self, uid: i64, command: &OneTimeEventImpl) -> bool {
         let event_time = command.event_time.timestamp();
         let parent_id = -1;
         let res = self.conn.execute(sql_q::INSERT_ACTIVE_EVENT, &[&command.event_text, &event_time, &uid, &parent_id]);
         if res.is_err() {
             error!("Can't insert one time event in db. Reasone: {}", res.unwrap_err());
+            return false;
         }
+        true
     }
 
-    fn put_repetitive_event(&mut self, uid: i64, command: &RepetitiveEventImpl){
+    fn put_repetitive_event(&mut self, uid: i64, command: &RepetitiveEventImpl) -> bool {
         let event_time: i64 = command.event_start_time.timestamp();
         let event_wait: i64 = command.event_wait_time.num_seconds();
         let res = self.conn.execute(sql_q::INSERT_REP_EVENT, &[&command.event_text, &event_time, &event_wait, &uid]);
         if res.is_err() {
             error!("Can't insert repetitive event in db. Reasone: {}", res.unwrap_err());
+            return false;
         }
 
         let id = self.conn.last_insert_rowid();
@@ -172,7 +178,9 @@ impl DataBase {
         let res = self.conn.execute(sql_q::INSERT_ACTIVE_EVENT, &[&active_event.event_text, &active_event.event_time.timestamp(), &uid, &id]);
         if res.is_err() {
             error!("Can't insert one time event in db. Reasone: {}", res.unwrap_err());
+            return false
         }
+        true
     }
 
 } // impl DataBase 

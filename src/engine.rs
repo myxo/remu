@@ -106,7 +106,10 @@ impl Engine {
     }
 
     pub fn add_user(&mut self, uid: i64, username: &str, chat_id: i64, tz: i32){
-        self.data_base.add_user(uid, username, chat_id, tz);
+        if !self.data_base.add_user(uid, username, chat_id, tz) {
+            error!("Can't add user to database. UID - <{}>, username - <{}>, chat_id - <{}>, tz - <{}>", 
+                uid, username, chat_id, tz);
+        }
     }
 
     fn process_bad_command(&self) -> String {
