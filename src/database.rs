@@ -149,6 +149,18 @@ impl DataBase {
     }
 
 
+    pub fn get_user_chat_id_all(&self) -> Vec<i32> {
+        let mut result = Vec::new();
+
+        let mut stmt = self.conn.prepare(sql_q::GET_ALL_USER_CHAT_ID).expect("error in sql connection prepare");
+        stmt.query_map(&[], |row| { row.get(0) } )
+            .expect("error in query map")
+            .for_each( |id| { result.push(id.unwrap()); });
+
+        result
+    }
+
+
     fn put_one_time_event(&mut self, uid: i64, command: &OneTimeEventImpl) -> bool {
         let event_time = command.event_time.timestamp();
         let parent_id = -1;

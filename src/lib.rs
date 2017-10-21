@@ -37,6 +37,7 @@ py_module_initializer!(libremu_backend,
         m.add(py, "get_active_events", py_fn!(py, get_active_events(uid: i64)))?;
         m.add(py, "get_rep_events", py_fn!(py, get_rep_events(uid: i64)))?;
         m.add(py, "del_rep_event", py_fn!(py, del_rep_event(event_id: i64)))?;
+        m.add(py, "get_user_chat_id_all", py_fn!(py, get_user_chat_id_all()))?;
 
         Ok(())
     });
@@ -102,6 +103,12 @@ fn del_rep_event(_py: Python, event_id: i64) -> PyResult<(i64)> {
         ENG.as_mut().expect("initialize engine!").delete_rep_event(event_id);
     }
     Ok(64)
+}
+
+pub fn get_user_chat_id_all(_py: Python) -> PyResult<Vec<i32>> {
+    unsafe{
+        return Ok(ENG.as_mut().expect("initialize engine!").get_user_chat_id_all());
+    }
 }
 
 fn engine_callback(text: String, uid: i64){

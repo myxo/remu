@@ -62,7 +62,6 @@ pub fn parse_command(command_line : String, user_timezone: i32) -> Command {
 
 
 fn try_parse_at(command_line : &String, user_timezone: i32) -> Option<Command>{
-    // let reg = String::from(r"^(at|в)\s*") + MOMENT_REGEX + r" (?P<main_text>.*)";
     let reg = String::from(r"^") + MOMENT_DAY_REGEX + r"\s*(at|At|в|В)\s*" + MOMENT_TIME_REGEX + r" (?P<main_text>.*)";
     let time_format = Regex::new(&reg[..]).unwrap();
 
@@ -156,7 +155,6 @@ fn get_duration_from_capture(cap: &Captures) -> Option<chrono::Duration>{
 
 
 fn get_datetime_from_capture(cap: &Captures, tz: i32) -> Option<DateTime<Utc>>{
-    println!("UTC now: {}", Utc::now());
     let dt = chrono::Duration::seconds((tz as i64) * 60 * 60);
     let now = Utc::now() - dt;
 
@@ -306,7 +304,7 @@ mod tests {
             let text = "some text";
             let command_text = command + " " + text;
             let now = Utc::now();
-            let t = Utc.ymd(now.year(), now.month(), now.day()).and_hms(18, now.minute(), 0);
+            let t = Utc.ymd(now.year(), now.month(), now.day()).and_hms(18, 0, 0);
 
             let result = try_parse_at(&command_text, 0);
             assert!(result.is_some());

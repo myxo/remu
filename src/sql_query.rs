@@ -55,6 +55,9 @@ pub const INSERT_USER: &str =
 pub const GET_USER_TIMEZONE: &str = 
     "SELECT timezone FROM user WHERE uid = ?1;";
 
+pub const GET_ALL_USER_CHAT_ID: &str = 
+    "SELECT chat_id FROM user";
+
 // SQL one time events --------------------------------------------
 
 

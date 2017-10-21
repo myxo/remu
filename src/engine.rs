@@ -112,6 +112,10 @@ impl Engine {
         }
     }
 
+    pub fn get_user_chat_id_all(&self) -> Vec<i32> {
+        self.data_base.get_user_chat_id_all()
+    }
+
     fn process_bad_command(&self) -> String {
         String::from("Can't parse input string")
     }
