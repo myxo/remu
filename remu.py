@@ -33,6 +33,60 @@ class FSMData:
         self.data = {}
 
 
+current_shown_dates={}
+@bot.message_handler(commands=['at'])
+def get_calendar(message):
+    now = datetime.datetime.now()
+    chat_id = message.chat.id
+    date = (now.year,now.month)
+    current_shown_dates[chat_id] = date
+    markup = create_calendar(now.year,now.month)
+    bot.send_message(message.chat.id, "Please, choose a date", reply_markup=markup)
+
+
+@bot.callback_query_handler(func=lambda call: call.data == 'next-month' or call.data == 'previous-month')
+def change_month(call):
+    next_month = call.data == 'next-month'
+    chat_id = call.message.chat.id
+    saved_date = current_shown_dates.get(chat_id)
+    if saved_date is None:
+        logging.error("Called calendar change_month handler, but there no saved_date by " + str(chat_id) + " chat_id")
+        return
+
+    year, month = saved_date
+    if next_month:
+        month += 1
+        if month > 12:
+            month, year = (1, year+1)
+    else:
+        month -= 1
+        if month < 1:
+            month, year = (12, year-1)
+
+    current_shown_dates[chat_id] = (year, month)
+    markup = create_calendar(year, month)
+    bot.edit_message_text("Please, choose a date", call.from_user.id, call.message.message_id, reply_markup=markup)
+    bot.answer_callback_query(call.id, text="")
+
+
+@bot.callback_query_handler(func=lambda call: call.data[0:13] == 'calendar-day-')
+def get_day(call):
+    chat_id = call.message.chat.id
+    saved_date = current_shown_dates.get(chat_id)
+    if(saved_date is None):
+        logging.error("Called calendar get_day handler, but there no saved_date by " + str(chat_id) + " chat_id")
+        return 
+
+    day = call.data[13:]
+    date = datetime.datetime(int(saved_date[0]), int(saved_date[1]), int(day), 0, 0, 0)
+    fsm[chat_id].state = BotState.AT_TIME_TEXT
+    fsm[chat_id].data = day + '-' + str(saved_date[1]) + '-' + str(saved_date[0])
+    # delete keyboard
+    bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=call.message.text)
+    bot.send_message(chat_id, 'Ok, ' + date.strftime(r'%b %d') + '. Now write the time and text of event.')
+    bot.answer_callback_query(call.id, text="")
+
+
 @bot.message_handler(commands=['start'])
 def handle_start(message):
     engine.add_user(message.from_user.id, message.from_user.username, message.chat.id, -3)
@@ -84,9 +138,15 @@ def send_to_engine(message):
     
     elif fsm[id].state == BotState.REP_DELETE_CHOOSE:
         delete_rep_event(message)
+
+    elif fsm[id].state == BotState.AT_TIME_TEXT:
+        command = fsm[id].data + ' at ' + input_text
+        bot.send_message(id, 'resulting command:\n' + command)
+        text = engine.handle_text_message(message.chat.id, command)
+        bot.send_message(message.chat.id, text)
     
     else:
-        log.error("Unknown bot state: uid = " + str(id) + " state = " + str(fsm[id].state))
+        logging.error("Unknown bot state: uid = " + str(id) + " state = " + str(fsm[id].state))
 
 
 @bot.callback_query_handler(func=lambda call: True)
