@@ -230,10 +230,16 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("-v", "--verbose", help="show log lines in stdout",
                     action="store_true")
+    parser.add_argument("--one_poll", help="do not try to polling againg after error",
+                    action="store_true")
     args = parser.parse_args()
     verbose = False
+    one_poll = False
     if args.verbose:
         verbose = True
+
+    if args.one_poll:
+        one_poll = True
 
     engine.initialize(verbose)
     engine.register_callback(callback)
@@ -248,6 +254,8 @@ if __name__ == '__main__':
             bot.polling()
         except:
             logging.error("I am down =(")
-        break
+
+        if one_poll:
+            break
 
     engine.stop()
