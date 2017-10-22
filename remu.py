@@ -23,6 +23,7 @@ class BotState(Enum):
     REP_DELETE_CHOOSE   = 1
     AT_CALENDAR         = 2
     AT_TIME_TEXT        = 3
+    AFTER_INPUT         = 4
 
 class FSMData:
     state = BotState.WAIT
@@ -35,13 +36,18 @@ class FSMData:
 
 current_shown_dates={}
 @bot.message_handler(commands=['at'])
-def get_calendar(message):
+def handle_at_command(message):
+    handle_calendar_call(chat_id = message.chat.id)
+
+
+def handle_calendar_call(chat_id, text=None):
     now = datetime.datetime.now()
-    chat_id = message.chat.id
     date = (now.year,now.month)
     current_shown_dates[chat_id] = date
     markup = create_calendar(now.year,now.month)
-    bot.send_message(message.chat.id, "Please, choose a date", reply_markup=markup)
+    fsm[chat_id].state = BotState.AT_CALENDAR
+    fsm[chat_id].data['text'] = text
+    bot.send_message(chat_id, "Please, choose a date", reply_markup=markup)
 
 
 @bot.callback_query_handler(func=lambda call: call.data == 'next-month' or call.data == 'previous-month')
@@ -80,10 +86,13 @@ def get_day(call):
     day = call.data[13:]
     date = datetime.datetime(int(saved_date[0]), int(saved_date[1]), int(day), 0, 0, 0)
     fsm[chat_id].state = BotState.AT_TIME_TEXT
-    fsm[chat_id].data = day + '-' + str(saved_date[1]) + '-' + str(saved_date[0])
+    fsm[chat_id].data['date_spec'] = day + '-' + str(saved_date[1]) + '-' + str(saved_date[0])
     # delete keyboard
     bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=call.message.text)
-    bot.send_message(chat_id, 'Ok, ' + date.strftime(r'%b %d') + '. Now write the time and text of event.')
+    if fsm[chat_id].data['text']:
+        bot.send_message(chat_id, 'Ok, ' + date.strftime(r'%b %d') + '. Now write the time of event.')
+    else:
+        bot.send_message(chat_id, 'Ok, ' + date.strftime(r'%b %d') + '. Now write the time and text of event.')
     bot.answer_callback_query(call.id, text="")
 
 
@@ -125,7 +134,7 @@ def handle_delete_rep(message):
 
 
 @bot.message_handler(content_types=["text"])
-def send_to_engine(message):
+def handle_text(message):
     input_text = message.text
     id = message.chat.id
 
@@ -140,10 +149,21 @@ def send_to_engine(message):
         delete_rep_event(message)
 
     elif fsm[id].state == BotState.AT_TIME_TEXT:
-        command = fsm[id].data + ' at ' + input_text
-        bot.send_message(id, 'resulting command:\n' + command)
-        text = engine.handle_text_message(message.chat.id, command)
-        bot.send_message(message.chat.id, text)
+        if fsm[id].data['text']:
+            input_text += ' ' + fsm[id].data['text']
+        command = fsm[id].data['date_spec'] + ' at ' + input_text
+        bot.send_message(id, 'Resulting command:\n' + command)
+        text = engine.handle_text_message(id, command)
+        bot.send_message(id, text)
+        fsm[id].reset()
+
+    elif fsm[id].state == BotState.AFTER_INPUT:
+        command = message.text + ' ' + fsm[id].data['text']
+        bot.send_message(id, 'Resulting command:\n' + command)
+        text = engine.handle_text_message(id, command)
+        bot.send_message(id, text)
+        fsm[id].reset()
+
     
     else:
         logging.error("Unknown bot state: uid = " + str(id) + " state = " + str(fsm[id].state))
@@ -152,28 +172,40 @@ def send_to_engine(message):
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
     if call.message:
-        if call.data != "Ok":
+        if call.data == 'at':
+            handle_calendar_call(call.message.chat.id, call.message.text)
+        elif call.data == 'after':
+            fsm[call.message.chat.id].state = BotState.AFTER_INPUT
+            fsm[call.message.chat.id].data['text'] = call.message.text
+            bot.send_message(call.message.chat.id, 'Ok, now write time duration.')
+        elif call.data != "Ok":
             call.message.text = call.data + " " + call.message.text
-            send_to_engine(call.message)
+            handle_text(call.message)
         # delete keys
         bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=call.message.text)
 
 
-def send_message(message_text, chat_id):
+def get_keyboard():
     keyboard = telebot.types.InlineKeyboardMarkup()
+    callback_button_at = telebot.types.InlineKeyboardButton(text="at", callback_data="at")
+    callback_button_after = telebot.types.InlineKeyboardButton(text="after", callback_data="after")
+    keyboard.add(callback_button_at, callback_button_after)
+
     callback_button_5m = telebot.types.InlineKeyboardButton(text="5m", callback_data="5m")
     callback_button_30m = telebot.types.InlineKeyboardButton(text="30m", callback_data="30m")
     callback_button_1h = telebot.types.InlineKeyboardButton(text="1h", callback_data="1h")
     keyboard.add(callback_button_5m, callback_button_30m, callback_button_1h)
+    
     callback_button_3h = telebot.types.InlineKeyboardButton(text="3h", callback_data="3h")
     callback_button_1d = telebot.types.InlineKeyboardButton(text="1d", callback_data="1d")
     callback_button_ok = telebot.types.InlineKeyboardButton(text="Ok", callback_data="Ok")
     keyboard.add(callback_button_3h, callback_button_1d, callback_button_ok)
-    bot.send_message(chat_id, message_text, reply_markup=keyboard)
+    return keyboard
 
 
 def callback(text, chat_id):
-    send_message(text, chat_id)
+    keyboard = get_keyboard()
+    bot.send_message(chat_id, text, reply_markup=keyboard)
 
 
 def delete_rep_event(message):
@@ -190,7 +222,8 @@ def delete_rep_event(message):
         fsm[message.chat.id].reset()
         bot.send_message(message.chat.id, "Done.")
     else:
-        bot.send_message(message.chat.id, "Number is out of limit. Try againg.")
+        fsm[message.chat.id].reset()
+        bot.send_message(message.chat.id, "Number is out of limit. Operation abort.")
 
 
 if __name__ == '__main__':
@@ -207,7 +240,6 @@ if __name__ == '__main__':
     user_chat_id_list = engine.get_user_chat_id_all()
     for chat_id in user_chat_id_list:
         fsm[chat_id] = FSMData()
-        fsm[chat_id].state = BotState.WAIT
 
     engine.run()
 
@@ -216,6 +248,6 @@ if __name__ == '__main__':
             bot.polling()
         except:
             logging.error("I am down =(")
-        # break
+        break
 
     engine.stop()

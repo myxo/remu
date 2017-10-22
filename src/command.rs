@@ -28,10 +28,7 @@ const MOMENT_DAY_REGEX: &str =
     r"(?:(?P<m_day>[\d]+))?(?:-(?P<m_month>[\d]+))?(?:-(?P<m_year>[\d]+))?";
 
 const MOMENT_TIME_REGEX: &str = 
-    r"(?P<m_hour>[\d]+)(?:.(?P<m_minute>[\d]+))?";
-
-// const MOMENT_REGEX: &str = 
-    // MOM
+    r"(?P<m_hour>[\d]+)(?:[.|:](?P<m_minute>[\d]+))?";
 
 const DURATION_REGEX: &str = 
     r"(:?(?P<d_day>[\d]*)[D|d|Д|д])?(:?(?P<d_hour>[\d]*)[H|h|Ч|ч])?(:?(?P<d_minute>[\d]*)[M|m|М|м])?(:?(?P<d_second>[\d]*)[S|s|С|с])?";
