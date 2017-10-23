@@ -115,9 +115,11 @@ def handle_help(message):
 
 @bot.message_handler(commands=['list'])
 def handle_list(message):
-    l = engine.get_active_events(message.from_user.id)
-    text = '\n'.join(l) if l else 'No current active event'
-    bot.send_message(message.chat.id, text)
+    text_list = engine.get_active_events(message.from_user.id)
+    if not text_list:
+        bot.send_message(message.chat.id, 'No current active event')
+    list_str = '\n'.join([ str(i+1) + ") " + key for i, key in enumerate(text_list)])
+    bot.send_message(message.chat.id, list_str, parse_mode='Markdown')
 
 
 def handle_delete_rep(message):
