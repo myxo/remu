@@ -132,7 +132,7 @@ def handle_delete_rep(message):
 
     [text_list, rep_id_list] = list(zip(*rep_event_list))
     fsm[uid].state = BotState.REP_DELETE_CHOOSE
-    fsm[uid].data = rep_id_list
+    fsm[uid].data['rep_id_list'] = rep_id_list
 
     header = "Here is yout rep events list. Choose witch to delete:\n"
     list_str = '\n'.join([ str(i+1) + ") " + key for i, key in enumerate(text_list)])
@@ -226,8 +226,9 @@ def delete_rep_event(message):
         return
 
     event_id = int(event_id_str)-1
-    if event_id >= 0 and event_id < len(fsm[message.chat.id].data):
-        del_id = fsm[message.chat.id].data[event_id]
+    id_list = fsm[message.chat.id].data['rep_id_list']
+    if id_list and event_id >= 0 and event_id < len(id_list):
+        del_id = id_list[event_id]
         engine.del_rep_event(del_id)
         fsm[message.chat.id].reset()
         bot.send_message(message.chat.id, "Done.")
