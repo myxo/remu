@@ -13,6 +13,8 @@ Tested in Ubuntu 16.04
 
 Dependencies: rust 1.22, python3, sqlite3-dev, [telebot](https://github.com/eternnoir/pyTelegramBotAPI)
 
+Optional (for voice recognition): opusdec, [asrclient-cli.py](https://github.com/yandex/speechkitcloud/tree/master/python)
+
 For running as service make /etc/systemd/system/remu-bot.service:
 ```
 [Unit]
