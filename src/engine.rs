@@ -40,7 +40,7 @@ impl Engine {
         }
     }
 
-    pub fn handle_text_message(&mut self, uid: i64, text_message: &str) -> String {
+    pub fn handle_text_message(&mut self, uid: i64, text_message: &str) -> (String, i32) {
         info!("Handle text message : {}", text_message);
         let tz = self.data_base.get_user_timezone(uid);
         let com = parse_command(String::from(text_message), tz);
@@ -116,11 +116,11 @@ impl Engine {
         self.data_base.get_user_chat_id_all()
     }
 
-    fn process_bad_command(&self) -> String {
-        String::from("Can't parse input string")
+    fn process_bad_command(&self) -> (String, i32) {
+        (String::from(""), 1)
     }
 
-    fn process_one_time_event_command(&mut self, uid:i64, c: OneTimeEventImpl) -> String {
+    fn process_one_time_event_command(&mut self, uid:i64, c: OneTimeEventImpl) -> (String, i32) {
         let tz = self.data_base.get_user_timezone(uid);
         let mut return_string = self.format_return_message_header(&c.event_time, tz);
         return_string.push('\n');
@@ -132,10 +132,10 @@ impl Engine {
         let tmp_string = str::replace(&return_string[..], "\n", " ");
         info!("Successfully process command, return string - <{}>", tmp_string);
 
-        return_string
+        (return_string, 0)
     }
 
-    fn process_repetitive_event_command(&mut self, uid: i64, c: RepetitiveEventImpl) -> String {
+    fn process_repetitive_event_command(&mut self, uid: i64, c: RepetitiveEventImpl) -> (String, i32) {
         let tz = self.data_base.get_user_timezone(uid);
         let mut return_string = self.format_return_message_header(&c.event_start_time, tz);
         return_string.push('\n');
@@ -147,7 +147,7 @@ impl Engine {
         let tmp_string = str::replace(&return_string[..], "\n", " ");
         info!("Successfully process command, return string - <{}>", tmp_string);
 
-        return_string
+        (return_string, 0)
     }
 
     fn on_one_time_event(&self, event: OneTimeEventImpl, uid: i64){

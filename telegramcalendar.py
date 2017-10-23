@@ -1,3 +1,5 @@
+# This file copied from https://github.com/unmonoqueteclea/calendar-telegram
+
 from telebot import types
 import calendar
 

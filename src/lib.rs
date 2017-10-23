@@ -73,7 +73,7 @@ fn add_user(_py : Python, uid: i64, username: &str, chat_id: i64, tz: i32) -> Py
     Ok((64))
 }
 
-fn handle_text_message(_py : Python, uid: i64, message : &str) -> PyResult<String>{
+fn handle_text_message(_py : Python, uid: i64, message : &str) -> PyResult<(String, i32)>{
     let out;
     unsafe{
         out = ENG.as_mut().expect("initialize engine!").handle_text_message(uid, message);

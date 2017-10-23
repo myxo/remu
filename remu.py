@@ -1,23 +1,29 @@
-import telebot
-import logging
-import time
-import threading
 import argparse
 import datetime
-import text_data as text
+import logging
+import subprocess
+import threading
+import time
+import os
+from enum import Enum
+
+import telebot
 
 import libremu_backend as engine
+import text_data as text
 from telegramcalendar import create_calendar
 
-logging.basicConfig(filename='log.txt', format='[%(asctime)s] [%(levelname)s]  %(message)s', level=logging.INFO)
+logging.basicConfig(filename='log.txt', format='[%(asctime)s] [%(levelname)s]  %(message)s', level=logging.DEBUG)
 
 f = open('token.id', 'r')
 token = f.read()
 f.close()
+f = open('yandex_api.id', 'r')
+yandex_api_token = f.read()
+f.close()
 bot = telebot.TeleBot(token)
 fsm = {}
 
-from enum import Enum
 class BotState(Enum):
     WAIT                = 0
     REP_DELETE_CHOOSE   = 1
@@ -142,8 +148,12 @@ def handle_text(message):
         if input_text == "/delete_rep":
             handle_delete_rep(message)
         else:
-            text = engine.handle_text_message(message.chat.id, input_text)
-            bot.send_message(message.chat.id, text)
+            (text, error) = engine.handle_text_message(message.chat.id, input_text)
+            if error == 0:
+                bot.send_message(message.chat.id, text)
+            else:
+                keyboard = get_keyboard()
+                bot.send_message(id, input_text, reply_markup=keyboard)
     
     elif fsm[id].state == BotState.REP_DELETE_CHOOSE:
         delete_rep_event(message)
@@ -153,14 +163,14 @@ def handle_text(message):
             input_text += ' ' + fsm[id].data['text']
         command = fsm[id].data['date_spec'] + ' at ' + input_text
         bot.send_message(id, 'Resulting command:\n' + command)
-        text = engine.handle_text_message(id, command)
+        (text, _) = engine.handle_text_message(id, command)
         bot.send_message(id, text)
         fsm[id].reset()
 
     elif fsm[id].state == BotState.AFTER_INPUT:
         command = message.text + ' ' + fsm[id].data['text']
         bot.send_message(id, 'Resulting command:\n' + command)
-        text = engine.handle_text_message(id, command)
+        (text, _) = engine.handle_text_message(id, command)
         bot.send_message(id, text)
         fsm[id].reset()
 
@@ -226,20 +236,69 @@ def delete_rep_event(message):
         bot.send_message(message.chat.id, "Number is out of limit. Operation abort.")
 
 
+@bot.message_handler(content_types=['voice'])
+def voice_processing(message):
+    logging.debug('Start to processing voice. File id = ' + message.voice.file_id)
+    file_info = bot.get_file(message.voice.file_id)
+    file = bot.download_file(file_info.file_path)
+    if not os.path.exists('voice'):
+        os.makedirs('voice')
+    filename_ogg = message.voice.file_id + '.ogg'
+    filename_wav = message.voice.file_id + '.wav'
+    with open('voice/' + filename_ogg, 'wb') as f:
+        f.write(file)
+
+    command = [
+        'opusdec',
+        '--rate', '16000',
+        '--force-wav',
+        '--quiet',
+        'voice/' + filename_ogg,
+        'voice/' + filename_wav
+    ]
+    proc = subprocess.Popen(command,
+                           stdout=subprocess.PIPE, 
+                           stderr=subprocess.PIPE)
+    err = proc.stderr.read()
+    if err: logging.error(err)
+
+    command = [
+        'asrclient-cli.py',
+        '--key=' + yandex_api_token,
+        '--silent',
+        'voice/' + filename_wav
+    ]
+    proc = subprocess.Popen(' '.join(command), shell=True,
+                           stdout=subprocess.PIPE, 
+                           stderr=subprocess.PIPE)
+    result = []
+    for line in proc.stdout:
+        result.append(line)
+    
+    err = proc.stderr.read()
+    if err: logging.error(err)
+
+    logging.info('Speech rec result: ' + str(result))
+
+    if len(result) <= 1:
+        bot.send_message(message.chat.id, "Can't recognize =(")
+    else:
+        keyboard = get_keyboard()
+        bot.send_message(message.chat.id, result[:-1], reply_markup=keyboard)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("-v", "--verbose", help="show log lines in stdout",
-                    action="store_true")
-    parser.add_argument("--one_poll", help="do not try to polling againg after error",
-                    action="store_true")
+    parser.add_argument("-v", 
+                        "--verbose", 
+                        help="show log lines in stdout",
+                        action="store_true")
+    parser.add_argument("--one_poll", 
+                        help="do not try to polling againg after error",
+                        action="store_true")
     args = parser.parse_args()
-    verbose = False
-    one_poll = False
-    if args.verbose:
-        verbose = True
-
-    if args.one_poll:
-        one_poll = True
+    verbose = True if args.verbose else False
+    one_poll = True if args.one_poll else False
 
     engine.initialize(verbose)
     engine.register_callback(callback)
