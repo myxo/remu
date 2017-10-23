@@ -43,17 +43,19 @@ class FSMData:
 current_shown_dates={}
 @bot.message_handler(commands=['at'])
 def handle_at_command(message):
-    handle_calendar_call(chat_id = message.chat.id)
+    handle_calendar_call(message)
 
 
-def handle_calendar_call(chat_id, text=None):
+def handle_calendar_call(message, text=None):
+    chat_id = message.chat.id
     now = datetime.datetime.now()
     date = (now.year,now.month)
     current_shown_dates[chat_id] = date
     markup = create_calendar(now.year,now.month)
     fsm[chat_id].state = BotState.AT_CALENDAR
     fsm[chat_id].data['text'] = text
-    bot.send_message(chat_id, "Please, choose a date", reply_markup=markup)
+    keyboard_message = bot.send_message(chat_id, "Please, choose a date", reply_markup=markup)
+    fsm[chat_id].data['message_id'] = keyboard_message.message_id
 
 
 @bot.callback_query_handler(func=lambda call: call.data == 'next-month' or call.data == 'previous-month')
@@ -160,6 +162,11 @@ def handle_text(message):
     elif fsm[id].state == BotState.REP_DELETE_CHOOSE:
         delete_rep_event(message)
 
+    elif fsm[id].state == BotState.AT_CALENDAR:
+        message_id = fsm[id].data['message_id']
+        bot.delete_message(chat_id=id, message_id=message_id)
+        fsm[id].reset()
+
     elif fsm[id].state == BotState.AT_TIME_TEXT:
         if fsm[id].data['text']:
             input_text += ' ' + fsm[id].data['text']
@@ -185,7 +192,7 @@ def handle_text(message):
 def callback_inline(call):
     if call.message:
         if call.data == 'at':
-            handle_calendar_call(call.message.chat.id, call.message.text)
+            handle_calendar_call(call.message, call.message.text)
         elif call.data == 'after':
             fsm[call.message.chat.id].state = BotState.AFTER_INPUT
             fsm[call.message.chat.id].data['text'] = call.message.text
@@ -296,7 +303,7 @@ if __name__ == '__main__':
                         "--verbose", 
                         help="show log lines in stdout",
                         action="store_true")
-    parser.add_argument("--one_poll", 
+    parser.add_argument("--one-poll", 
                         help="do not try to polling againg after error",
                         action="store_true")
     args = parser.parse_args()
