@@ -43,11 +43,10 @@ class FSMData:
 current_shown_dates={}
 @bot.message_handler(commands=['at'])
 def handle_at_command(message):
-    handle_calendar_call(message)
+    handle_calendar_call(message.chat.id)
 
 
-def handle_calendar_call(message, text=None):
-    chat_id = message.chat.id
+def handle_calendar_call(chat_id, text=None):
     now = datetime.datetime.now()
     date = (now.year,now.month)
     current_shown_dates[chat_id] = date
@@ -192,7 +191,7 @@ def handle_text(message):
 def callback_inline(call):
     if call.message:
         if call.data == 'at':
-            handle_calendar_call(call.message, call.message.text)
+            handle_calendar_call(call.message.chat.id, call.message.text)
         elif call.data == 'after':
             fsm[call.message.chat.id].state = BotState.AFTER_INPUT
             fsm[call.message.chat.id].data['text'] = call.message.text
