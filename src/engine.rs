@@ -115,6 +115,22 @@ impl Engine {
         self.data_base.get_user_chat_id_all()
     }
 
+    pub fn get_user_groups(&self, uid: i64) -> Vec<(String, i64)> {
+        self.data_base.get_groups_names(uid)
+    }
+
+    pub fn add_user_group(&self, uid: i64, group_name: &str){
+        self.data_base.add_group(uid, group_name);
+    }
+
+    pub fn get_group_items(&self, gid: i64) -> Vec<(String, i64)> {
+        self.data_base.get_group_items(gid)
+    }
+
+    pub fn add_group_item(&self, gid: i64, group_item: &str){
+        self.data_base.add_group_item(gid, group_item);
+    }
+
     fn process_bad_command(&self) -> (String, i32) {
         (String::from(""), 1)
     }

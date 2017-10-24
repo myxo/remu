@@ -38,6 +38,10 @@ py_module_initializer!(libremu_backend,
         m.add(py, "get_rep_events", py_fn!(py, get_rep_events(uid: i64)))?;
         m.add(py, "del_rep_event", py_fn!(py, del_rep_event(event_id: i64)))?;
         m.add(py, "get_user_chat_id_all", py_fn!(py, get_user_chat_id_all()))?;
+        m.add(py, "add_user_group", py_fn!(py, add_user_group(uid: i64, group_name: &str)))?;
+        m.add(py, "get_user_groups", py_fn!(py, get_user_groups(uid: i64)))?;
+        m.add(py, "add_group_item", py_fn!(py, add_group_item(uid: i64, group_name: &str)))?;
+        m.add(py, "get_group_items", py_fn!(py, get_group_items(gid: i64)))?;
 
         Ok(())
     });
@@ -134,7 +138,35 @@ fn register_callback(_py : Python, obj : PyObject) -> PyResult<bool>{
 }
 
 
+fn get_user_groups(_py : Python, uid: i64) -> PyResult<Vec<(String, i64)>>{
+    let out;
+    unsafe{
+        out = ENG.as_mut().expect("initialize engine!").get_user_groups(uid);
+    }
+    Ok(out)
+}
 
+fn add_user_group(_py : Python, uid: i64, group_name: &str) -> PyResult<(u64)>{
+    unsafe{
+        ENG.as_mut().expect("initialize engine!").add_user_group(uid, group_name);
+    }
+    Ok(42)
+}
+
+fn get_group_items(_py : Python, gid: i64) -> PyResult<Vec<(String, i64)>>{
+    let out;
+    unsafe{
+        out = ENG.as_mut().expect("initialize engine!").get_group_items(gid);
+    }
+    Ok(out)
+}
+
+fn add_group_item(_py : Python, gid: i64, group_item: &str) -> PyResult<(u64)>{
+    unsafe{
+        ENG.as_mut().expect("initialize engine!").add_group_item(gid, group_item);
+    }
+    Ok(42)
+}
 
 fn setup_logging(verbosity: u64, console_output_enabled: bool) -> Result<(), fern::InitError> {
     let mut base_config = fern::Dispatch::new();

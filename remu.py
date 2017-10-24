@@ -30,6 +30,7 @@ class BotState(Enum):
     AT_CALENDAR         = 2
     AT_TIME_TEXT        = 3
     AFTER_INPUT         = 4
+    GROUPE_CHOOSE       = 5
 
 class FSMData:
     state = BotState.WAIT
@@ -123,6 +124,18 @@ def handle_list(message):
     bot.send_message(message.chat.id, list_str, parse_mode='Markdown')
 
 
+@bot.message_handler(commands=['group'])
+def handle_group(message):
+    id = message.from_user.id
+    groups = engine.get_user_groups(id)
+    if not groups:
+        pass # TODO:
+    [text_list, id_list] = list(zip(*groups))
+    fsm[id].state = BotState.GROUPE_CHOOSE
+    keyboard = get_group_keyboard(text_list, id_list)
+    bot.send_message(id, 'Choose group.', reply_markup=keyboard)
+
+
 def handle_delete_rep(message):
     global fsm
     uid = message.chat.id
@@ -165,6 +178,7 @@ def handle_text(message):
         message_id = fsm[id].data['message_id']
         bot.delete_message(chat_id=id, message_id=message_id)
         fsm[id].reset()
+        handle_text(message)
 
     elif fsm[id].state == BotState.AT_TIME_TEXT:
         if fsm[id].data['text']:
@@ -185,6 +199,18 @@ def handle_text(message):
     
     else:
         logging.error("Unknown bot state: uid = " + str(id) + " state = " + str(fsm[id].state))
+
+
+@bot.callback_query_handler(func=lambda call: call.data[0:3] == 'grp')
+def on_select_group(call):
+    uid = call.message.chat.id
+    gid = int(call.data[3:])
+    items = engine.get_group_items(gid)
+    [text_list, id_list] = list(zip(*items))
+    text = '\n'.join([ str(i+1) + ') ' + item for i, item in enumerate(text_list) ])
+    print(text_list)
+    bot.send_message(uid, text)
+    fsm[uid].reset()
 
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -218,6 +244,14 @@ def get_keyboard():
     callback_button_1d = telebot.types.InlineKeyboardButton(text="1d", callback_data="1d")
     callback_button_ok = telebot.types.InlineKeyboardButton(text="Ok", callback_data="Ok")
     keyboard.add(callback_button_3h, callback_button_1d, callback_button_ok)
+    return keyboard
+
+
+def get_group_keyboard(text_list, id_list):
+    keyboard = telebot.types.InlineKeyboardMarkup()
+    for i, text in enumerate(text_list):
+        callback_button = telebot.types.InlineKeyboardButton(text=text, callback_data='grp'+str(id_list[i]))
+        keyboard.add(callback_button)
     return keyboard
 
 
