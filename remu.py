@@ -11,7 +11,7 @@ import telebot
 
 import libremu_backend as engine
 import text_data as text
-from telegramcalendar import create_calendar
+import keyboards
 
 logging.basicConfig(filename='log.txt', format='[%(asctime)s] [%(levelname)s]  %(message)s', level=logging.DEBUG)
 
@@ -23,6 +23,7 @@ yandex_api_token = f.read()
 f.close()
 bot = telebot.TeleBot(token)
 fsm = {}
+current_shown_dates={} # TODO: get rid off
 
 class BotState(Enum):
     WAIT                = 0
@@ -41,21 +42,156 @@ class FSMData:
         self.data = {}
 
 
-current_shown_dates={}
-@bot.message_handler(commands=['at'])
-def handle_at_command(message):
+@bot.message_handler(content_types=["text"])
+def handle_text(message):
+    input_text = message.text
+    id = message.chat.id
+
+    if fsm[id].state == BotState.WAIT: 
+        on_wait_status(message)
+    
+    elif fsm[id].state == BotState.REP_DELETE_CHOOSE:
+        on_rep_delete_choose_status(message)
+
+    elif fsm[id].state == BotState.AT_CALENDAR:
+        on_at_calendar_status(message)
+
+    elif fsm[id].state == BotState.AT_TIME_TEXT:
+        on_at_time_text_status(message)
+
+    elif fsm[id].state == BotState.AFTER_INPUT:
+        on_after_input_status(message)
+    
+    else:
+        logging.error("Unknown bot state: uid = " + str(id) + " state = " + str(fsm[id].state))
+        fsm[id].reset()
+        handle_text(message)
+
+
+def on_wait_status(message):
+    input_text = message.text
+    id = message.chat.id
+    
+    if input_text.find('/start ') == 0:
+        on_start_command(message)
+
+    elif input_text.find('/help ') == 0:
+        on_help_command(message)
+    
+    elif input_text.find('/delete_rep ') == 0:
+        on_delete_rep_command(message)
+    
+    elif input_text.find('/at ') == 0:
+        on_at_command(message)
+
+    elif input_text.find('/group ') == 0:
+        on_group_command(message)
+
+    elif input_text.find('/add_group ') == 0:
+        on_add_group_command(message)
+
+    elif input_text.find('/list ') == 0:
+        on_list_command(message)
+
+    else:
+        (text, error) = engine.handle_text_message(message.chat.id, input_text)
+        if error == 0:
+            bot.send_message(message.chat.id, text)
+        else:
+            keyboard = keyboards.action()
+            bot.send_message(id, input_text, reply_markup=keyboard)
+
+def on_rep_delete_choose_status(message):
+    delete_rep_event(message)
+
+
+def on_at_calendar_status(message):
+    id = message.chat.id
+    message_id = fsm[id].data['message_id']
+    bot.delete_message(chat_id=id, message_id=message_id)
+    fsm[id].reset()
+    handle_text(message)
+    
+
+def on_at_time_text_status(message):
+    id = message.chat.id
+    input_text = message.text
+    if fsm[id].data['text']:
+        input_text += ' ' + fsm[id].data['text']
+    command = fsm[id].data['date_spec'] + ' at ' + input_text
+    bot.send_message(id, 'Resulting command:\n' + command)
+    (text, _) = engine.handle_text_message(id, command)
+    bot.send_message(id, text)
+    fsm[id].reset()
+
+
+def on_after_input_status(message):
+    command = message.text + ' ' + fsm[id].data['text']
+    bot.send_message(id, 'Resulting command:\n' + command)
+    (text, _) = engine.handle_text_message(id, command)
+    bot.send_message(id, text)
+    fsm[id].reset()
+
+
+# ------------------- command handlers
+
+
+def on_start_command(message):
+    engine.add_user(message.from_user.id, message.from_user.username, message.chat.id, -3)
+    bot.send_message(message.chat.id, 'Hello! ^_^\nType /help')
+
+def on_help_command(message):
+    bot.send_message(message.chat.id, text.main_help_message_ru, parse_mode='Markdown')
+
+def on_delete_rep_command(message):
+    global fsm
+    uid = message.chat.id
+    fsm[uid].state = BotState.WAIT
+    rep_event_list = engine.get_rep_events(uid)
+
+    if not rep_event_list:
+        bot.send_message(message.chat.id, 'No current rep event')
+        return
+
+    [text_list, rep_id_list] = list(zip(*rep_event_list))
+    fsm[uid].state = BotState.REP_DELETE_CHOOSE
+    fsm[uid].data['rep_id_list'] = rep_id_list
+
+    header = "Here is yout rep events list. Choose witch to delete:\n"
+    list_str = '\n'.join([ str(i+1) + ") " + key for i, key in enumerate(text_list)])
+    bot.send_message(uid, header + list_str)
+
+def on_at_command(message):
     handle_calendar_call(message.chat.id)
 
+def on_group_command(message):
+    id = message.from_user.id
+    groups = engine.get_user_groups(id)
+    if not groups:
+        pass # TODO:
+    [text_list, id_list] = list(zip(*groups))
+    fsm[id].state = BotState.GROUPE_CHOOSE
+    keyboard = keyboards.groups(text_list, id_list)
+    bot.send_message(id, 'Choose group.', reply_markup=keyboard)
 
-def handle_calendar_call(chat_id, text=None):
-    now = datetime.datetime.now()
-    date = (now.year,now.month)
-    current_shown_dates[chat_id] = date
-    markup = create_calendar(now.year,now.month)
-    fsm[chat_id].state = BotState.AT_CALENDAR
-    fsm[chat_id].data['text'] = text
-    keyboard_message = bot.send_message(chat_id, "Please, choose a date", reply_markup=markup)
-    fsm[chat_id].data['message_id'] = keyboard_message.message_id
+def on_add_group_command(message):
+    uid = message.chat.id
+    offset = len('/add_group ')
+    if offset >= len(message.text):
+        bot.send_message(uid, 'You should write group name')
+    group_name = message.text[offset:]
+    engine.add_user_group(uid, group_name)
+    bot.send_message(uid, 'Done.')
+
+def on_list_command(message):
+    text_list = engine.get_active_events(message.from_user.id)
+    if not text_list:
+        bot.send_message(message.chat.id, 'No current active event')
+    list_str = '\n'.join([ str(i+1) + ") " + key for i, key in enumerate(text_list)])
+    bot.send_message(message.chat.id, list_str, parse_mode='Markdown')
+
+
+# --------------- Keyboard callback handlers 
 
 
 @bot.callback_query_handler(func=lambda call: call.data == 'next-month' or call.data == 'previous-month')
@@ -78,7 +214,7 @@ def change_month(call):
             month, year = (12, year-1)
 
     current_shown_dates[chat_id] = (year, month)
-    markup = create_calendar(year, month)
+    markup = keyboards.calendar(year, month)
     bot.edit_message_text("Please, choose a date", call.from_user.id, call.message.message_id, reply_markup=markup)
     bot.answer_callback_query(call.id, text="")
 
@@ -102,103 +238,6 @@ def get_day(call):
     else:
         bot.send_message(chat_id, 'Ok, ' + date.strftime(r'%b %d') + '. Now write the time and text of event.')
     bot.answer_callback_query(call.id, text="")
-
-
-@bot.message_handler(commands=['start'])
-def handle_start(message):
-    engine.add_user(message.from_user.id, message.from_user.username, message.chat.id, -3)
-    bot.send_message(message.chat.id, 'Hello! ^_^\nType /help')
-
-
-@bot.message_handler(commands=['help'])
-def handle_help(message):
-    bot.send_message(message.chat.id, text.main_help_message_ru, parse_mode='Markdown')
-
-
-@bot.message_handler(commands=['list'])
-def handle_list(message):
-    text_list = engine.get_active_events(message.from_user.id)
-    if not text_list:
-        bot.send_message(message.chat.id, 'No current active event')
-    list_str = '\n'.join([ str(i+1) + ") " + key for i, key in enumerate(text_list)])
-    bot.send_message(message.chat.id, list_str, parse_mode='Markdown')
-
-
-@bot.message_handler(commands=['group'])
-def handle_group(message):
-    id = message.from_user.id
-    groups = engine.get_user_groups(id)
-    if not groups:
-        pass # TODO:
-    [text_list, id_list] = list(zip(*groups))
-    fsm[id].state = BotState.GROUPE_CHOOSE
-    keyboard = get_group_keyboard(text_list, id_list)
-    bot.send_message(id, 'Choose group.', reply_markup=keyboard)
-
-
-def handle_delete_rep(message):
-    global fsm
-    uid = message.chat.id
-    fsm[uid].state = BotState.WAIT
-    rep_event_list = engine.get_rep_events(uid)
-
-    if not rep_event_list:
-        bot.send_message(message.chat.id, 'No current rep event')
-        return
-
-    [text_list, rep_id_list] = list(zip(*rep_event_list))
-    fsm[uid].state = BotState.REP_DELETE_CHOOSE
-    fsm[uid].data['rep_id_list'] = rep_id_list
-
-    header = "Here is yout rep events list. Choose witch to delete:\n"
-    list_str = '\n'.join([ str(i+1) + ") " + key for i, key in enumerate(text_list)])
-    bot.send_message(uid, header + list_str)
-
-
-@bot.message_handler(content_types=["text"])
-def handle_text(message):
-    input_text = message.text
-    id = message.chat.id
-
-    if fsm[id].state == BotState.WAIT:
-        if input_text == "/delete_rep":
-            handle_delete_rep(message)
-        else:
-            (text, error) = engine.handle_text_message(message.chat.id, input_text)
-            if error == 0:
-                bot.send_message(message.chat.id, text)
-            else:
-                keyboard = get_keyboard()
-                bot.send_message(id, input_text, reply_markup=keyboard)
-    
-    elif fsm[id].state == BotState.REP_DELETE_CHOOSE:
-        delete_rep_event(message)
-
-    elif fsm[id].state == BotState.AT_CALENDAR:
-        message_id = fsm[id].data['message_id']
-        bot.delete_message(chat_id=id, message_id=message_id)
-        fsm[id].reset()
-        handle_text(message)
-
-    elif fsm[id].state == BotState.AT_TIME_TEXT:
-        if fsm[id].data['text']:
-            input_text += ' ' + fsm[id].data['text']
-        command = fsm[id].data['date_spec'] + ' at ' + input_text
-        bot.send_message(id, 'Resulting command:\n' + command)
-        (text, _) = engine.handle_text_message(id, command)
-        bot.send_message(id, text)
-        fsm[id].reset()
-
-    elif fsm[id].state == BotState.AFTER_INPUT:
-        command = message.text + ' ' + fsm[id].data['text']
-        bot.send_message(id, 'Resulting command:\n' + command)
-        (text, _) = engine.handle_text_message(id, command)
-        bot.send_message(id, text)
-        fsm[id].reset()
-
-    
-    else:
-        logging.error("Unknown bot state: uid = " + str(id) + " state = " + str(fsm[id].state))
 
 
 @bot.callback_query_handler(func=lambda call: call.data[0:3] == 'grp')
@@ -229,35 +268,8 @@ def callback_inline(call):
         bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=call.message.text)
 
 
-def get_keyboard():
-    keyboard = telebot.types.InlineKeyboardMarkup()
-    callback_button_at = telebot.types.InlineKeyboardButton(text="at", callback_data="at")
-    callback_button_after = telebot.types.InlineKeyboardButton(text="after", callback_data="after")
-    keyboard.add(callback_button_at, callback_button_after)
 
-    callback_button_5m = telebot.types.InlineKeyboardButton(text="5m", callback_data="5m")
-    callback_button_30m = telebot.types.InlineKeyboardButton(text="30m", callback_data="30m")
-    callback_button_1h = telebot.types.InlineKeyboardButton(text="1h", callback_data="1h")
-    keyboard.add(callback_button_5m, callback_button_30m, callback_button_1h)
-    
-    callback_button_3h = telebot.types.InlineKeyboardButton(text="3h", callback_data="3h")
-    callback_button_1d = telebot.types.InlineKeyboardButton(text="1d", callback_data="1d")
-    callback_button_ok = telebot.types.InlineKeyboardButton(text="Ok", callback_data="Ok")
-    keyboard.add(callback_button_3h, callback_button_1d, callback_button_ok)
-    return keyboard
-
-
-def get_group_keyboard(text_list, id_list):
-    keyboard = telebot.types.InlineKeyboardMarkup()
-    for i, text in enumerate(text_list):
-        callback_button = telebot.types.InlineKeyboardButton(text=text, callback_data='grp'+str(id_list[i]))
-        keyboard.add(callback_button)
-    return keyboard
-
-
-def callback(text, chat_id):
-    keyboard = get_keyboard()
-    bot.send_message(chat_id, text, reply_markup=keyboard)
+# ------------- helper function
 
 
 def delete_rep_event(message):
@@ -277,6 +289,17 @@ def delete_rep_event(message):
     else:
         fsm[message.chat.id].reset()
         bot.send_message(message.chat.id, "Number is out of limit. Operation abort.")
+
+
+def handle_calendar_call(chat_id, text=None):
+    now = datetime.datetime.now()
+    date = (now.year,now.month)
+    current_shown_dates[chat_id] = date
+    markup = keyboards.calendar(now.year,now.month)
+    fsm[chat_id].state = BotState.AT_CALENDAR
+    fsm[chat_id].data['text'] = text
+    keyboard_message = bot.send_message(chat_id, "Please, choose a date", reply_markup=markup)
+    fsm[chat_id].data['message_id'] = keyboard_message.message_id
 
 
 @bot.message_handler(content_types=['voice'])
@@ -326,8 +349,15 @@ def voice_processing(message):
     if len(result) <= 1:
         bot.send_message(message.chat.id, "Can't recognize =(")
     else:
-        keyboard = get_keyboard()
+        keyboard = keyboards.action()
         bot.send_message(message.chat.id, result[:-1], reply_markup=keyboard)
+
+
+
+def on_engine_event(text, chat_id):
+    keyboard = keyboards.action()
+    bot.send_message(chat_id, text, reply_markup=keyboard)
+
 
 
 if __name__ == '__main__':
@@ -344,7 +374,7 @@ if __name__ == '__main__':
     one_poll = True if args.one_poll else False
 
     engine.initialize(verbose)
-    engine.register_callback(callback)
+    engine.register_callback(on_engine_event)
     user_chat_id_list = engine.get_user_chat_id_all()
     for chat_id in user_chat_id_list:
         fsm[chat_id] = FSMData()
