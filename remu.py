@@ -33,6 +33,7 @@ class BotState(Enum):
     AFTER_INPUT         = 4
     GROUPE_CHOOSE       = 5
     GROUP_ADD_ITEM      = 6
+    GROUP_DEL_ITEM      = 7
 
 class FSMData:
     state = BotState.WAIT
@@ -65,6 +66,9 @@ def handle_text(message):
 
     elif fsm[id].state == BotState.GROUP_ADD_ITEM:
         on_group_add_item_status(message)
+
+    elif fsm[id].state == BotState.GROUP_DEL_ITEM:
+        on_group_del_item_status(message)
     
     else:
         logging.error("Unknown bot state: uid = " + str(id) + " state = " + str(fsm[id].state))
@@ -93,6 +97,9 @@ def on_wait_status(message):
 
     elif input_text.find('/add_group') == 0:
         on_add_group_command(message)
+
+    elif input_text.find('/del_group_item') == 0:
+        on_del_group_item_command(message)
 
     elif input_text.find('/list') == 0:
         on_list_command(message)
@@ -142,6 +149,24 @@ def on_group_add_item_status(message):
     # should be cathced in keyboard handle
     pass 
 
+def on_group_del_item_status(message):
+    id = message.chat.id
+    event_id_str = message.text
+    if not event_id_str.isdigit():
+        msg = bot.reply_to(message, 'You should write number')
+        return
+
+    event_id = int(event_id_str)-1
+    id_list = fsm[id].data['id_list']
+    if id_list and event_id >= 0 and event_id < len(id_list):
+        del_id = id_list[event_id]
+        engine.delete_group_item(del_id)
+        fsm[id].reset()
+        bot.send_message(id, "Done.")
+    else:
+        fsm[id].reset()
+        bot.send_message(id, "Number is out of limit. Operation abort.")
+    pass 
 
 # ------------------- command handlers
 
@@ -202,6 +227,10 @@ def on_list_command(message):
         bot.send_message(message.chat.id, 'No current active event')
     list_str = '\n'.join([ str(i+1) + ") " + key for i, key in enumerate(text_list)])
     bot.send_message(message.chat.id, list_str, parse_mode='Markdown')
+
+
+def on_del_group_item_command(message):
+    choose_group_message(message.chat.id, next_state=BotState.GROUP_DEL_ITEM)
 
 
 
@@ -267,12 +296,16 @@ def on_select_group(call):
         if items:
             [text_list, id_list] = list(zip(*items)) # TODO: add group name
             text = '\n'.join([ str(i+1) + ') ' + item for i, item in enumerate(text_list) ])
+            fsm[uid].data['id_list'] = id_list
             bot.send_message(uid, text)
         else:
             bot.send_message(uid, 'No items in group')
 
     bot.delete_message(uid, fsm[uid].data['message_id'])
-    fsm[uid].reset()
+    if fsm[uid].state == BotState.GROUP_DEL_ITEM:
+        bot.send_message(uid, 'Choose element to delete')
+    else:
+        fsm[uid].reset()
 
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -304,7 +337,6 @@ def delete_rep_event(message):
     event_id_str = message.text
     if not event_id_str.isdigit():
         msg = bot.reply_to(message, 'You should write number')
-        bot.register_next_step_handler(message, delete_rep_event)
         return
 
     event_id = int(event_id_str)-1

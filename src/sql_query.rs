@@ -110,5 +110,8 @@ pub const SELECT_ALL_GROUP_BY_UID: &str =
 pub const INSERT_GROUP_ITEM: &str = 
     "INSERT INTO group_item(gid, group_item) VALUES (?1, ?2);";
 
+pub const DELETE_GROUP_ITEM: &str = 
+    "DELETE FROM group_item WHERE id = ?1;";
+
 pub const SELECT_ALL_GROUP_ITEMS: &str = 
     "SELECT id, group_item FROM group_item WHERE gid = ?1;";

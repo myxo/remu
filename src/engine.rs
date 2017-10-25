@@ -131,6 +131,10 @@ impl Engine {
         self.data_base.add_group_item(gid, group_item);
     }
 
+    pub fn delete_group_item(&self, id: i64){
+        self.data_base.delete_group_item(id);
+    }
+
     fn process_bad_command(&self) -> (String, i32) {
         (String::from(""), 1)
     }

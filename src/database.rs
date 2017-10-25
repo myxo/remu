@@ -193,6 +193,15 @@ impl DataBase {
         true
     }
 
+    pub fn delete_group_item(&self, id: i64) -> bool{
+        let res = self.conn.execute(sql_q::DELETE_GROUP_ITEM, &[&id]);
+        if res.is_err() {
+            error!("Can't delete group item from db. Reasone: {}", res.unwrap_err());
+            return false;
+        }
+        true
+    }
+
     pub fn get_group_items(&self, gid: i64) -> Vec<(String, i64)> {
         let mut result = Vec::new();
 
