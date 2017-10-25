@@ -29,9 +29,10 @@ def calendar(year,month):
 
 def action():
     keyboard = types.InlineKeyboardMarkup()
+    callback_button_gr = types.InlineKeyboardButton(text="group", callback_data="group")
     callback_button_at = types.InlineKeyboardButton(text="at", callback_data="at")
     callback_button_after = types.InlineKeyboardButton(text="after", callback_data="after")
-    keyboard.add(callback_button_at, callback_button_after)
+    keyboard.add(callback_button_gr, callback_button_at, callback_button_after)
 
     callback_button_5m = types.InlineKeyboardButton(text="5m", callback_data="5m")
     callback_button_30m = types.InlineKeyboardButton(text="30m", callback_data="30m")

@@ -32,6 +32,7 @@ class BotState(Enum):
     AT_TIME_TEXT        = 3
     AFTER_INPUT         = 4
     GROUPE_CHOOSE       = 5
+    GROUP_ADD_ITEM      = 6
 
 class FSMData:
     state = BotState.WAIT
@@ -61,6 +62,9 @@ def handle_text(message):
 
     elif fsm[id].state == BotState.AFTER_INPUT:
         on_after_input_status(message)
+
+    elif fsm[id].state == BotState.GROUP_ADD_ITEM:
+        on_group_add_item_status(message)
     
     else:
         logging.error("Unknown bot state: uid = " + str(id) + " state = " + str(fsm[id].state))
@@ -72,25 +76,25 @@ def on_wait_status(message):
     input_text = message.text
     id = message.chat.id
     
-    if input_text.find('/start ') == 0:
+    if input_text.find('/start') == 0:
         on_start_command(message)
 
-    elif input_text.find('/help ') == 0:
+    elif input_text.find('/help') == 0:
         on_help_command(message)
     
-    elif input_text.find('/delete_rep ') == 0:
+    elif input_text.find('/delete_rep') == 0:
         on_delete_rep_command(message)
     
-    elif input_text.find('/at ') == 0:
+    elif input_text.find('/at') == 0:
         on_at_command(message)
 
-    elif input_text.find('/group ') == 0:
+    elif input_text.find('/group') == 0:
         on_group_command(message)
 
-    elif input_text.find('/add_group ') == 0:
+    elif input_text.find('/add_group') == 0:
         on_add_group_command(message)
 
-    elif input_text.find('/list ') == 0:
+    elif input_text.find('/list') == 0:
         on_list_command(message)
 
     else:
@@ -100,6 +104,7 @@ def on_wait_status(message):
         else:
             keyboard = keyboards.action()
             bot.send_message(id, input_text, reply_markup=keyboard)
+
 
 def on_rep_delete_choose_status(message):
     delete_rep_event(message)
@@ -131,6 +136,11 @@ def on_after_input_status(message):
     (text, _) = engine.handle_text_message(id, command)
     bot.send_message(id, text)
     fsm[id].reset()
+
+
+def on_group_add_item_status(message):
+    # should be cathced in keyboard handle
+    pass 
 
 
 # ------------------- command handlers
@@ -165,14 +175,17 @@ def on_at_command(message):
     handle_calendar_call(message.chat.id)
 
 def on_group_command(message):
-    id = message.from_user.id
-    groups = engine.get_user_groups(id)
-    if not groups:
-        pass # TODO:
-    [text_list, id_list] = list(zip(*groups))
-    fsm[id].state = BotState.GROUPE_CHOOSE
-    keyboard = keyboards.groups(text_list, id_list)
-    bot.send_message(id, 'Choose group.', reply_markup=keyboard)
+    # id = message.from_user.id
+    # groups = engine.get_user_groups(id)
+    # if not groups:
+    #     bot.send(id, 'No groups.') # TODO: добавить группу
+    #     return
+    # [text_list, id_list] = list(zip(*groups))
+    # # fsm[id].state = BotState.GROUPE_CHOOSE
+    # keyboard = keyboards.groups(text_list, id_list)
+    # keyboard_message = bot.send_message(id, 'Choose group.', reply_markup=keyboard)
+    # fsm[id].data['message_id'] = keyboard_message.message_id
+    choose_group_message(message.from_user.id)
 
 def on_add_group_command(message):
     uid = message.chat.id
@@ -189,6 +202,7 @@ def on_list_command(message):
         bot.send_message(message.chat.id, 'No current active event')
     list_str = '\n'.join([ str(i+1) + ") " + key for i, key in enumerate(text_list)])
     bot.send_message(message.chat.id, list_str, parse_mode='Markdown')
+
 
 
 # --------------- Keyboard callback handlers 
@@ -244,23 +258,37 @@ def get_day(call):
 def on_select_group(call):
     uid = call.message.chat.id
     gid = int(call.data[3:])
-    items = engine.get_group_items(gid)
-    [text_list, id_list] = list(zip(*items))
-    text = '\n'.join([ str(i+1) + ') ' + item for i, item in enumerate(text_list) ])
-    print(text_list)
-    bot.send_message(uid, text)
+    if fsm[uid].state == BotState.GROUP_ADD_ITEM:
+        text = fsm[uid].data['text']
+        engine.add_group_item(gid, text)
+        bot.send_message(uid, 'Done')
+    else:
+        items = engine.get_group_items(gid)
+        if items:
+            [text_list, id_list] = list(zip(*items)) # TODO: add group name
+            text = '\n'.join([ str(i+1) + ') ' + item for i, item in enumerate(text_list) ])
+            bot.send_message(uid, text)
+        else:
+            bot.send_message(uid, 'No items in group')
+
+    bot.delete_message(uid, fsm[uid].data['message_id'])
     fsm[uid].reset()
 
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
+    id = call.message.chat.id
     if call.message:
         if call.data == 'at':
-            handle_calendar_call(call.message.chat.id, call.message.text)
+            handle_calendar_call(id, call.message.text)
         elif call.data == 'after':
-            fsm[call.message.chat.id].state = BotState.AFTER_INPUT
-            fsm[call.message.chat.id].data['text'] = call.message.text
-            bot.send_message(call.message.chat.id, 'Ok, now write time duration.')
+            fsm[id].state = BotState.AFTER_INPUT
+            fsm[id].data['text'] = call.message.text
+            bot.send_message(id, 'Ok, now write time duration.')
+        elif call.data == 'group':
+            fsm[id].state = BotState.GROUP_ADD_ITEM
+            fsm[id].data['text'] = call.message.text
+            choose_group_message(id, next_state=BotState.GROUP_ADD_ITEM, add_if_not_exist=False)
         elif call.data != "Ok":
             call.message.text = call.data + " " + call.message.text
             handle_text(call.message)
@@ -300,6 +328,19 @@ def handle_calendar_call(chat_id, text=None):
     fsm[chat_id].data['text'] = text
     keyboard_message = bot.send_message(chat_id, "Please, choose a date", reply_markup=markup)
     fsm[chat_id].data['message_id'] = keyboard_message.message_id
+
+
+def choose_group_message(id, next_state=None, add_if_not_exist=False):
+    groups = engine.get_user_groups(id)
+    if not groups:
+        bot.send(id, 'No groups.') # TODO: добавить группу
+        return
+    [text_list, id_list] = list(zip(*groups))
+    if next_state:
+        fsm[id].state = next_state
+    keyboard = keyboards.groups(text_list, id_list)
+    keyboard_message = bot.send_message(id, 'Choose group.', reply_markup=keyboard)
+    fsm[id].data['message_id'] = keyboard_message.message_id
 
 
 @bot.message_handler(content_types=['voice'])
