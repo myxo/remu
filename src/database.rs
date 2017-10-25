@@ -169,6 +169,20 @@ impl DataBase {
         true
     }
 
+    pub fn delete_group(&self, gid: i64) -> bool{
+        let res = self.conn.execute(sql_q::DELETE_GROUP_ITEM_BY_GID, &[&gid]);
+        if res.is_err() {
+            error!("Can't delete group items by gid. Reasone: {}", res.unwrap_err());
+            return false;
+        }
+        let res = self.conn.execute(sql_q::DELETE_GROUP, &[&gid]);
+        if res.is_err() {
+            error!("Can't delete group from db. Reasone: {}", res.unwrap_err());
+            return false;
+        }
+        true
+    }
+
     pub fn get_groups_names(&self, uid: i64) -> Vec<(String, i64)> {
         let mut result = Vec::new();
 

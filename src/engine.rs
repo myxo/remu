@@ -123,6 +123,10 @@ impl Engine {
         self.data_base.add_group(uid, group_name);
     }
 
+    pub fn delete_user_group(&self, gid: i64){
+        self.data_base.delete_group(gid);
+    }
+
     pub fn get_group_items(&self, gid: i64) -> Vec<(String, i64)> {
         self.data_base.get_group_items(gid)
     }

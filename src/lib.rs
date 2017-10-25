@@ -39,6 +39,7 @@ py_module_initializer!(libremu_backend,
         m.add(py, "del_rep_event", py_fn!(py, del_rep_event(event_id: i64)))?;
         m.add(py, "get_user_chat_id_all", py_fn!(py, get_user_chat_id_all()))?;
         m.add(py, "add_user_group", py_fn!(py, add_user_group(uid: i64, group_name: &str)))?;
+        m.add(py, "delete_user_group", py_fn!(py, delete_user_group(gid: i64)))?;
         m.add(py, "get_user_groups", py_fn!(py, get_user_groups(uid: i64)))?;
         m.add(py, "add_group_item", py_fn!(py, add_group_item(uid: i64, group_name: &str)))?;
         m.add(py, "delete_group_item", py_fn!(py, delete_group_item(id: i64)))?;
@@ -150,6 +151,13 @@ fn get_user_groups(_py : Python, uid: i64) -> PyResult<Vec<(String, i64)>>{
 fn add_user_group(_py : Python, uid: i64, group_name: &str) -> PyResult<(u64)>{
     unsafe{
         ENG.as_mut().expect("initialize engine!").add_user_group(uid, group_name);
+    }
+    Ok(42)
+}
+
+fn delete_user_group(_py : Python, gid: i64) -> PyResult<(u64)>{
+    unsafe{
+        ENG.as_mut().expect("initialize engine!").delete_user_group(gid);
     }
     Ok(42)
 }

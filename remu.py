@@ -34,6 +34,7 @@ class BotState(Enum):
     GROUPE_CHOOSE       = 5
     GROUP_ADD_ITEM      = 6
     GROUP_DEL_ITEM      = 7
+    GROUP_DEL           = 8
 
 class FSMData:
     state = BotState.WAIT
@@ -97,6 +98,9 @@ def on_wait_status(message):
 
     elif input_text.find('/add_group') == 0:
         on_add_group_command(message)
+
+    elif input_text.find('/del_group') == 0:
+        on_del_group_command(message)
 
     elif input_text.find('/del_group_item') == 0:
         on_del_group_item_command(message)
@@ -221,6 +225,10 @@ def on_add_group_command(message):
     engine.add_user_group(uid, group_name)
     bot.send_message(uid, 'Done.')
 
+
+def on_del_group_command(message):
+    choose_group_message(message.chat.id, next_state=BotState.GROUP_DEL)
+
 def on_list_command(message):
     text_list = engine.get_active_events(message.from_user.id)
     if not text_list:
@@ -290,6 +298,9 @@ def on_select_group(call):
     if fsm[uid].state == BotState.GROUP_ADD_ITEM:
         text = fsm[uid].data['text']
         engine.add_group_item(gid, text)
+        bot.send_message(uid, 'Done')
+    elif fsm[uid].state == BotState.GROUP_DEL:
+        engine.delete_user_group(gid)
         bot.send_message(uid, 'Done')
     else:
         items = engine.get_group_items(gid)

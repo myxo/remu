@@ -101,6 +101,9 @@ pub const SELECT_ALL_REP_BY_UID_LIMIT: &str =
 pub const INSERT_GROUP: &str = 
     "INSERT INTO group_list(uid, group_name) VALUES (?1, ?2);";
 
+pub const DELETE_GROUP: &str = 
+    "DELETE FROM group_list WHERE gid = ?1;";
+
 pub const SELECT_ALL_GROUP_BY_UID: &str = 
     "SELECT gid, group_name FROM group_list WHERE uid = ?1;";
 
@@ -112,6 +115,9 @@ pub const INSERT_GROUP_ITEM: &str =
 
 pub const DELETE_GROUP_ITEM: &str = 
     "DELETE FROM group_item WHERE id = ?1;";
+
+pub const DELETE_GROUP_ITEM_BY_GID: &str = 
+    "DELETE FROM group_item WHERE gid = ?1;";
 
 pub const SELECT_ALL_GROUP_ITEMS: &str = 
     "SELECT id, group_item FROM group_item WHERE gid = ?1;";
