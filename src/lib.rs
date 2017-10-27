@@ -32,7 +32,7 @@ py_module_initializer!(libremu_backend,
         m.add(py, "run", py_fn!(py, run()))?;
         m.add(py, "stop", py_fn!(py, stop()))?;
         m.add(py, "register_callback", py_fn!(py, register_callback(obj: PyObject)))?;
-        m.add(py, "add_user", py_fn!(py, add_user(uid: i64, username: &str, chat_id: i64, tz: i32)))?;
+        m.add(py, "add_user", py_fn!(py, add_user(uid: i64, username: &str, chat_id: i64, first_name: &str, last_name: &str, tz: i32)))?;
         m.add(py, "handle_text_message", py_fn!(py, handle_text_message(uid: i64, message: &str)))?;
         m.add(py, "get_active_events", py_fn!(py, get_active_events(uid: i64)))?;
         m.add(py, "get_rep_events", py_fn!(py, get_rep_events(uid: i64)))?;
@@ -76,9 +76,9 @@ fn stop(_py : Python) -> PyResult<(u64)>{
     Ok((64))
 }
 
-fn add_user(_py : Python, uid: i64, username: &str, chat_id: i64, tz: i32) -> PyResult<(u64)>{
+fn add_user(_py : Python, uid: i64, username: &str, chat_id: i64, first_name: &str, last_name: &str, tz: i32) -> PyResult<(u64)>{
     unsafe {
-        ENG.as_mut().expect("initialize engine!").add_user(uid, username, chat_id, tz);
+        ENG.as_mut().expect("initialize engine!").add_user(uid, username, chat_id, first_name, last_name, tz);
     }
     Ok((64))
 }
@@ -152,18 +152,16 @@ fn get_user_groups(_py : Python, uid: i64) -> PyResult<Vec<(String, i64)>>{
     Ok(out)
 }
 
-fn add_user_group(_py : Python, uid: i64, group_name: &str) -> PyResult<(u64)>{
+fn add_user_group(_py : Python, uid: i64, group_name: &str) -> PyResult<(bool)>{
     unsafe{
-        ENG.as_mut().expect("initialize engine!").add_user_group(uid, group_name);
+        Ok(ENG.as_mut().expect("initialize engine!").add_user_group(uid, group_name))
     }
-    Ok(42)
 }
 
-fn delete_user_group(_py : Python, gid: i64) -> PyResult<(u64)>{
+fn delete_user_group(_py : Python, gid: i64) -> PyResult<(bool)>{
     unsafe{
-        ENG.as_mut().expect("initialize engine!").delete_user_group(gid);
+        Ok(ENG.as_mut().expect("initialize engine!").delete_user_group(gid))
     }
-    Ok(42)
 }
 
 fn get_group_items(_py : Python, gid: i64) -> PyResult<Vec<(String, i64)>>{
@@ -174,18 +172,16 @@ fn get_group_items(_py : Python, gid: i64) -> PyResult<Vec<(String, i64)>>{
     Ok(out)
 }
 
-fn add_group_item(_py : Python, gid: i64, group_item: &str) -> PyResult<(u64)>{
+fn add_group_item(_py : Python, gid: i64, group_item: &str) -> PyResult<(bool)>{
     unsafe{
-        ENG.as_mut().expect("initialize engine!").add_group_item(gid, group_item);
+        Ok(ENG.as_mut().expect("initialize engine!").add_group_item(gid, group_item))
     }
-    Ok(42)
 }
 
-fn delete_group_item(_py : Python, id: i64) -> PyResult<(u64)>{
+fn delete_group_item(_py : Python, id: i64) -> PyResult<(bool)>{
     unsafe{
-        ENG.as_mut().expect("initialize engine!").delete_group_item(id);
+        Ok(ENG.as_mut().expect("initialize engine!").delete_group_item(id))
     }
-    Ok(42)
 }
 
 fn log_debug(_py : Python, s: &str) -> PyResult<(u64)> {

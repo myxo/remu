@@ -105,12 +105,14 @@ impl Engine {
         self.data_base.delete_rep_event(event_id);
     }
 
-    pub fn add_user(&mut self, uid: i64, username: &str, chat_id: i64, tz: i32){
-        if !self.data_base.add_user(uid, username, chat_id, tz) {
+    pub fn add_user(&mut self, uid: i64, username: &str, chat_id: i64, first_name: &str, last_name: &str, tz: i32) -> bool{
+        if !self.data_base.add_user(uid, username, chat_id, first_name, last_name, tz) {
             error!("Can't add user to database. UID - <{}>, username - <{}>, chat_id - <{}>, tz - <{}>", 
                 uid, username, chat_id, tz);
+            return false;
         }
         info!("Add new user id - {}, username - {}", uid, username);
+        true
     }
 
     pub fn get_user_chat_id_all(&self) -> Vec<i32> {
@@ -121,28 +123,44 @@ impl Engine {
         self.data_base.get_groups_names(uid)
     }
 
-    pub fn add_user_group(&self, uid: i64, group_name: &str){
-        self.data_base.add_group(uid, group_name);
+    pub fn add_user_group(&self, uid: i64, group_name: &str) -> bool{
+        if group_name == ""{
+            warn!("{} try to add group without name", uid);
+            return false;
+        }
+        if !self.data_base.add_group(uid, group_name){
+            return false;
+        }
         info!("<{}> add user group {}.", uid, group_name);
+        true
     }
 
-    pub fn delete_user_group(&self, gid: i64){
-        self.data_base.delete_group(gid);
+    pub fn delete_user_group(&self, gid: i64) -> bool{
+        if !self.data_base.delete_group(gid){
+            return false;
+        }
         info!("Delete {} group", gid);
+        true
     }
 
     pub fn get_group_items(&self, gid: i64) -> Vec<(String, i64)> {
         self.data_base.get_group_items(gid)
     }
 
-    pub fn add_group_item(&self, gid: i64, group_item: &str){
-        self.data_base.add_group_item(gid, group_item);
+    pub fn add_group_item(&self, gid: i64, group_item: &str) -> bool{
+        if !self.data_base.add_group_item(gid, group_item){
+            return false;
+        }
         info!("Added item {} to {}", group_item, gid);
+        true
     }
 
-    pub fn delete_group_item(&self, id: i64){
-        self.data_base.delete_group_item(id);
+    pub fn delete_group_item(&self, id: i64) -> bool{
+        if !self.data_base.delete_group_item(id){
+            return false;
+        }
         info!("Deleted group item {} ", id);
+        true
     }
 
     fn process_bad_command(&self) -> (String, i32) {

@@ -12,6 +12,7 @@ import libremu_backend as engine
 import text_data as text
 import keyboards
 
+base_error_message = 'There are some problem with request. Forward messages to @nikolay_klimov if you think this is a bag.'
 
 f = open('token.id', 'r')
 token = f.read()
@@ -32,7 +33,9 @@ class BotState(Enum):
     GROUPE_CHOOSE       = 5
     GROUP_ADD_ITEM      = 6
     GROUP_DEL_ITEM      = 7
-    GROUP_DEL           = 8
+    GROUP_ADD           = 8
+    GROUP_DEL           = 9
+
 
 class FSMData:
     state = BotState.WAIT
@@ -47,6 +50,12 @@ class FSMData:
 def handle_text(message):
     input_text = message.text
     id = message.chat.id
+
+    # Special case
+    if input_text.find('/start') == 0:
+        on_start_command(message)
+        fsm[id] = FSMData()
+        return
 
     engine.log_debug("Processing input text message: %s. Bot state = %s"%(input_text, str(fsm[id].state)))
 
@@ -71,6 +80,9 @@ def handle_text(message):
     elif fsm[id].state == BotState.GROUP_DEL_ITEM:
         on_group_del_item_status(message)
     
+    elif fsm[id].state == BotState.GROUP_ADD:
+        on_group_add_status(message)
+    
     else:
         engine.log_error("Unknown bot state: uid = " + str(id) + " state = " + str(fsm[id].state))
         fsm[id].reset()
@@ -80,11 +92,8 @@ def handle_text(message):
 def on_wait_status(message):
     input_text = message.text
     id = message.chat.id
-    
-    if input_text.find('/start') == 0:
-        on_start_command(message)
 
-    elif input_text.find('/help') == 0:
+    if input_text.find('/help') == 0:
         on_help_command(message)
     
     elif input_text.find('/delete_rep') == 0:
@@ -164,19 +173,41 @@ def on_group_del_item_status(message):
     id_list = fsm[id].data['id_list']
     if id_list and event_id >= 0 and event_id < len(id_list):
         del_id = id_list[event_id]
-        engine.delete_group_item(del_id)
+        if engine.delete_group_item(del_id):
+            bot.send_message(id, "Done.")
+        else:
+            bot.send_message(id, base_error_message)
         fsm[id].reset()
-        bot.send_message(id, "Done.")
     else:
         fsm[id].reset()
         bot.send_message(id, "Number is out of limit. Operation abort.")
     pass 
 
+def on_group_add_status(message):
+    id = message.chat.id
+    group_name = message.text
+    if engine.add_user_group(id, group_name):
+        bot.send_message(id, 'Done.')
+    else:
+        bot.send_message(id, base_error_message)
+    fsm[id].reset()
+
 # ------------------- command handlers
 
 
 def on_start_command(message):
-    engine.add_user(message.from_user.id, message.from_user.username, message.chat.id, -3)
+    username = ''
+    first_name = ''
+    last_name = ''
+    if message.from_user.username: username = message.from_user.username
+    if message.from_user.first_name: first_name = message.from_user.first_name
+    if message.from_user.last_name: last_name = message.from_user.last_name
+    engine.add_user(message.from_user.id, 
+                    username, 
+                    message.chat.id, 
+                    first_name, 
+                    last_name, 
+                    -3)
     bot.send_message(message.chat.id, 'Hello! ^_^\nType /help')
 
 def on_help_command(message):
@@ -212,8 +243,14 @@ def on_add_group_command(message):
     if offset >= len(message.text):
         bot.send_message(uid, 'You should write group name')
     group_name = message.text[offset:]
-    engine.add_user_group(uid, group_name)
-    bot.send_message(uid, 'Done.')
+    if group_name == '':
+        fsm[uid].state = BotState.GROUP_ADD
+        bot.send_message(uid, 'Ok, write new group name')
+    else:
+        if engine.add_user_group(uid, group_name):
+            bot.send_message(uid, 'Done.')
+        else:
+            bot.send_message(uid, base_error_message)
 
 
 def on_del_group_command(message):
@@ -288,11 +325,15 @@ def on_select_group(call):
     engine.log_debug("Processing keyboard callback. Call.data = %s. Bot state = %s"%(call.data, str(fsm[uid].state)))
     if fsm[uid].state == BotState.GROUP_ADD_ITEM:
         text = fsm[uid].data['text']
-        engine.add_group_item(gid, text)
-        bot.send_message(uid, 'Done')
+        if engine.add_group_item(gid, text):
+            bot.send_message(uid, 'Done')
+        else:
+            bot.send_message(uid, base_error_message)
     elif fsm[uid].state == BotState.GROUP_DEL:
-        engine.delete_user_group(gid)
-        bot.send_message(uid, 'Done')
+        if engine.delete_user_group(gid):
+            bot.send_message(uid, 'Done')
+        else:
+            bot.send_message(uid, base_error_message)
     else:
         items = engine.get_group_items(gid)
         if items:
@@ -346,9 +387,11 @@ def delete_rep_event(message):
     id_list = fsm[message.chat.id].data['rep_id_list']
     if id_list and event_id >= 0 and event_id < len(id_list):
         del_id = id_list[event_id]
-        engine.del_rep_event(del_id)
+        if engine.del_rep_event(del_id):
+            bot.send_message(message.chat.id, "Done.")
+        else:
+            bot.send_message(uid, base_error_message)
         fsm[message.chat.id].reset()
-        bot.send_message(message.chat.id, "Done.")
     else:
         fsm[message.chat.id].reset()
         bot.send_message(message.chat.id, "Number is out of limit. Operation abort.")

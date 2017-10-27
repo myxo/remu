@@ -24,9 +24,11 @@ impl DataBase {
         DataBase { conn: conn }
     }
 
-    pub fn add_user(&mut self, uid: i64, username: &str, chat_id: i64, tz: i32) -> bool{
+    pub fn add_user(&mut self, uid: i64, username: &str, chat_id: i64, first_name: &str, last_name: &str, tz: i32) -> bool{
         let res = self.conn.execute(sql_q::INSERT_USER, &[&uid, 
                                                           &username, 
+                                                          &first_name,
+                                                          &last_name,
                                                           &chat_id,
                                                           &tz
                                                         ]);

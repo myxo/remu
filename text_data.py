@@ -33,3 +33,17 @@ rep 23-12 11.30 7d позвони маме
 Данное событие будет каждую неделю в 11.30, начиная с 23 декабря напоминать вам позвонить маме. 
 
 """
+
+
+
+# Command list to BotFather
+"""
+list - list of all reminders
+help - view help
+at - "at" command helper
+delete_rep - delete repetitive event
+group - show user groups
+add_group - add new group
+del_group - delete group
+del_group_item - delete item in group
+"""
