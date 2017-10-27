@@ -52,72 +52,67 @@ py_module_initializer!(libremu_backend,
         Ok(())
     });
 
-fn initialize(_py : Python, verbose: bool) -> PyResult<(bool)>{
-    setup_logging(3, verbose).expect("ERROR in logging initialization.");
+fn initialize(_py : Python, verbose: bool) -> PyResult<bool>{
+    setup_logging(3, verbose).unwrap_or_else(
+        |err| { 
+            error!("Logging init failed, reasone: {}", err); 
+        });
     unsafe {
         ENG = Some(Engine::new(false));
     }
-    Ok((true))
+    Ok(true)
 }
 
-fn run(_py : Python) -> PyResult<(u64)>{
+fn run(_py : Python) -> PyResult<bool>{
     thread::spawn( ||{
         unsafe{
             ENG.as_mut().expect("initialize engine!").run();
         }
     });
-    Ok((64))
+    Ok(true)
 }
 
-fn stop(_py : Python) -> PyResult<(u64)>{
+fn stop(_py : Python) -> PyResult<bool>{
     unsafe {
         ENG.as_mut().expect("initialize engine!").stop();
     }
-    Ok((64))
+    Ok(true)
 }
 
-fn add_user(_py : Python, uid: i64, username: &str, chat_id: i64, first_name: &str, last_name: &str, tz: i32) -> PyResult<(u64)>{
+fn add_user(_py : Python, uid: i64, username: &str, chat_id: i64, first_name: &str, last_name: &str, tz: i32) -> PyResult<bool>{
     unsafe {
-        ENG.as_mut().expect("initialize engine!").add_user(uid, username, chat_id, first_name, last_name, tz);
+        Ok(ENG.as_mut().expect("initialize engine!").add_user(uid, username, chat_id, first_name, last_name, tz))
     }
-    Ok((64))
 }
 
 fn handle_text_message(_py : Python, uid: i64, message : &str) -> PyResult<(String, i32)>{
-    let out;
     unsafe{
-        out = ENG.as_mut().expect("initialize engine!").handle_text_message(uid, message);
+        Ok(ENG.as_mut().expect("initialize engine!").handle_text_message(uid, message))
     }
-    Ok(out)
 }
 
 
 fn get_active_events(_py : Python, uid: i64) -> PyResult<Vec<String>>{
-    let out;
     unsafe{
-        out = ENG.as_mut().expect("initialize engine!").get_active_event_list(uid);
+        Ok(ENG.as_mut().expect("initialize engine!").get_active_event_list(uid))
     }
-    Ok(out)
 }
 
 fn get_rep_events(_py : Python, uid: i64) -> PyResult<Vec<(String, i64)>>{
-    let out;
     unsafe{
-        out = ENG.as_mut().expect("initialize engine!").get_rep_event_list(uid);
+        Ok(ENG.as_mut().expect("initialize engine!").get_rep_event_list(uid))
     }
-    Ok(out)
 }
 
-fn del_rep_event(_py: Python, event_id: i64) -> PyResult<(i64)> {
+fn del_rep_event(_py: Python, event_id: i64) -> PyResult<bool> {
     unsafe{
-        ENG.as_mut().expect("initialize engine!").delete_rep_event(event_id);
+        Ok(ENG.as_mut().expect("initialize engine!").delete_rep_event(event_id))
     }
-    Ok(64)
 }
 
 pub fn get_user_chat_id_all(_py: Python) -> PyResult<Vec<i32>> {
     unsafe{
-        return Ok(ENG.as_mut().expect("initialize engine!").get_user_chat_id_all());
+        Ok(ENG.as_mut().expect("initialize engine!").get_user_chat_id_all())
     }
 }
 
@@ -145,11 +140,9 @@ fn register_callback(_py : Python, obj : PyObject) -> PyResult<bool>{
 
 
 fn get_user_groups(_py : Python, uid: i64) -> PyResult<Vec<(String, i64)>>{
-    let out;
     unsafe{
-        out = ENG.as_mut().expect("initialize engine!").get_user_groups(uid);
+        Ok(ENG.as_mut().expect("initialize engine!").get_user_groups(uid))
     }
-    Ok(out)
 }
 
 fn add_user_group(_py : Python, uid: i64, group_name: &str) -> PyResult<(bool)>{
@@ -165,11 +158,9 @@ fn delete_user_group(_py : Python, gid: i64) -> PyResult<(bool)>{
 }
 
 fn get_group_items(_py : Python, gid: i64) -> PyResult<Vec<(String, i64)>>{
-    let out;
     unsafe{
-        out = ENG.as_mut().expect("initialize engine!").get_group_items(gid);
+        Ok(ENG.as_mut().expect("initialize engine!").get_group_items(gid))
     }
-    Ok(out)
 }
 
 fn add_group_item(_py : Python, gid: i64, group_item: &str) -> PyResult<(bool)>{
@@ -184,19 +175,19 @@ fn delete_group_item(_py : Python, id: i64) -> PyResult<(bool)>{
     }
 }
 
-fn log_debug(_py : Python, s: &str) -> PyResult<(u64)> {
+fn log_debug(_py : Python, s: &str) -> PyResult<bool> {
     debug!("[Frontend] {}", s);
-    Ok(42)
+    Ok(true)
 }
 
-fn log_info(_py : Python, s: &str) -> PyResult<(u64)> {
+fn log_info(_py : Python, s: &str) -> PyResult<bool> {
     info!("[Frontend] {}", s);
-    Ok(42)
+    Ok(true)
 }
 
-fn log_error(_py : Python, s: &str) -> PyResult<(u64)> {
+fn log_error(_py : Python, s: &str) -> PyResult<bool> {
     error!("[Frontend] {}", s);
-    Ok(42)
+    Ok(true)
 }
 
 fn setup_logging(verbosity: u64, console_output_enabled: bool) -> Result<(), fern::InitError> {

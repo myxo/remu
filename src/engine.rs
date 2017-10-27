@@ -2,6 +2,7 @@ use chrono::prelude::*;
 use chrono;
 use std::thread;
 use std::time;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use command::*;
 use database::DataBase;
@@ -12,14 +13,14 @@ pub struct Engine {
     next_wakeup: Option<DateTime<Utc>>,
     data_base: DataBase,
     callback : Option<(fn(String, i64))>,
-    stop_loop: bool,
+    stop_loop: AtomicBool,
 }
 
 impl Engine {
     pub fn new(open_in_memory: bool) -> Engine {
         info!("Initialize engine");
         Engine {
-            stop_loop: false,
+            stop_loop: AtomicBool::new(false),
             next_wakeup: None,
             callback: None,
             data_base: DataBase::new(open_in_memory),
@@ -28,15 +29,15 @@ impl Engine {
 
     // Normally should be run in another thread
     pub fn run(&mut self) {
-        self.stop_loop = false;
+        self.stop_loop.store(false, Ordering::Relaxed);
         self.loop_thread();
     }
 
     fn loop_thread(&mut self) {
         info!("Start engine loop");
-        while !self.stop_loop {
+        while !self.stop_loop.load(Ordering::Relaxed) {
             self.tick();
-            thread::sleep(time::Duration::from_millis(1000));
+            thread::sleep(time::Duration::from_millis(500));
         }
     }
 
@@ -58,7 +59,7 @@ impl Engine {
 
     pub fn stop(&mut self) {
         info!("Stoping engine");
-        self.stop_loop = true;
+        self.stop_loop.store(false, Ordering::Relaxed);
     }
 
     pub fn get_active_event_list(&self, uid: i64) -> Vec<String> {
@@ -100,19 +101,14 @@ impl Engine {
         result
     }
 
-    pub fn delete_rep_event(&mut self, event_id: i64){
+    pub fn delete_rep_event(&mut self, event_id: i64) -> bool{
         info!("Delete {} rep event", event_id);
-        self.data_base.delete_rep_event(event_id);
+        self.data_base.delete_rep_event(event_id)
     }
 
     pub fn add_user(&mut self, uid: i64, username: &str, chat_id: i64, first_name: &str, last_name: &str, tz: i32) -> bool{
-        if !self.data_base.add_user(uid, username, chat_id, first_name, last_name, tz) {
-            error!("Can't add user to database. UID - <{}>, username - <{}>, chat_id - <{}>, tz - <{}>", 
-                uid, username, chat_id, tz);
-            return false;
-        }
         info!("Add new user id - {}, username - {}", uid, username);
-        true
+        self.data_base.add_user(uid, username, chat_id, first_name, last_name, tz)
     }
 
     pub fn get_user_chat_id_all(&self) -> Vec<i32> {
@@ -128,19 +124,13 @@ impl Engine {
             warn!("{} try to add group without name", uid);
             return false;
         }
-        if !self.data_base.add_group(uid, group_name){
-            return false;
-        }
         info!("<{}> add user group {}.", uid, group_name);
-        true
+        self.data_base.add_group(uid, group_name)
     }
 
     pub fn delete_user_group(&self, gid: i64) -> bool{
-        if !self.data_base.delete_group(gid){
-            return false;
-        }
         info!("Delete {} group", gid);
-        true
+        self.data_base.delete_group(gid)
     }
 
     pub fn get_group_items(&self, gid: i64) -> Vec<(String, i64)> {
@@ -148,19 +138,13 @@ impl Engine {
     }
 
     pub fn add_group_item(&self, gid: i64, group_item: &str) -> bool{
-        if !self.data_base.add_group_item(gid, group_item){
-            return false;
-        }
-        info!("Added item {} to {}", group_item, gid);
-        true
+        info!("Add item {} to {}", group_item, gid);
+        self.data_base.add_group_item(gid, group_item)
     }
 
     pub fn delete_group_item(&self, id: i64) -> bool{
-        if !self.data_base.delete_group_item(id){
-            return false;
-        }
-        info!("Deleted group item {} ", id);
-        true
+        info!("Delete group item {} ", id);
+        self.data_base.delete_group_item(id)
     }
 
     fn process_bad_command(&self) -> (String, i32) {

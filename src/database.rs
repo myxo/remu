@@ -33,7 +33,8 @@ impl DataBase {
                                                           &tz
                                                         ]);
         if res.is_err() {
-            error!("Can't insert user in db. Reasone: {}", res.unwrap_err());
+            error!("Can't insert user in db. UID - <{}>, username - <{}>, chat_id - <{}>. Reasone: {}", 
+                uid, username, chat_id, res.unwrap_err());
             return false;
         }
         true
@@ -139,8 +140,12 @@ impl DataBase {
 
 
     pub fn delete_rep_event(&mut self, event_id: i64) -> bool {
-        self.conn.execute(sql_q::DELETE_FROM_REP_BY_ID, &[&event_id]).expect("Cannot del rep event");
-        self.conn.execute(sql_q::DELETE_FROM_ACTIVE_EVENT_BY_PARENT_ID, &[&event_id]).expect("Cannot del rep event");
+        if self.conn.execute(sql_q::DELETE_FROM_REP_BY_ID, &[&event_id]).is_err(){
+            return false;
+        }
+        if self.conn.execute(sql_q::DELETE_FROM_ACTIVE_EVENT_BY_PARENT_ID, &[&event_id]).is_err(){
+            return false;
+        }
         true
     }
 
@@ -165,7 +170,7 @@ impl DataBase {
     pub fn add_group(&self, uid: i64, group_name: &str) -> bool{
         let res = self.conn.execute(sql_q::INSERT_GROUP, &[&uid, &group_name]);
         if res.is_err() {
-            error!("Can't insert group in db. Reasone: {}", res.unwrap_err());
+            error!("{} can't insert group {} in db. Reasone: {}", uid, group_name, res.unwrap_err());
             return false;
         }
         true
