@@ -376,7 +376,7 @@ def handle_calendar_call(chat_id, text=None):
 def choose_group_message(id, next_state=None, add_if_not_exist=False):
     groups = engine.get_user_groups(id)
     if not groups:
-        bot.send(id, 'No groups.') # TODO: добавить группу
+        bot.send_message(id, 'No groups.') # TODO: добавить группу
         return
     [text_list, id_list] = list(zip(*groups))
     if next_state:
