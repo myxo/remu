@@ -369,8 +369,7 @@ def callback_inline(call):
         elif call.data != "Ok":
             call.message.text = call.data + " " + call.message.text
             handle_text(call.message)
-        # delete keys
-        bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=call.message.text)
+        bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
 
 
 
@@ -411,7 +410,11 @@ def handle_calendar_call(chat_id, text=None):
 def choose_group_message(id, next_state=None, add_if_not_exist=False):
     groups = engine.get_user_groups(id)
     if not groups:
-        bot.send_message(id, 'No groups.') # TODO: добавить группу
+        if add_if_not_exist:
+            fsm[id].state = BotState.GROUP_ADD
+            bot.send_message(id, 'There is not group yet. Write name for your new group')
+        else:
+            bot.send_message(id, 'No groups.')
         return
     [text_list, id_list] = list(zip(*groups))
     if next_state:
