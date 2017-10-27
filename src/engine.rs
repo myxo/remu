@@ -70,7 +70,7 @@ impl Engine {
             match command {
                 Command::OneTimeEvent(c) => {
                     let text: String = c.event_text.chars().take(40).collect();
-                    let date: String = (c.event_time + dt).format("%e %b %l.%M").to_string();
+                    let date: String = (c.event_time + dt).format("%e %b %k.%M").to_string();
                     result.push(format!("{} : _{}_", text, date));
                 }
                 Command::BadCommand => {}
