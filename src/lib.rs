@@ -45,6 +45,10 @@ py_module_initializer!(libremu_backend,
         m.add(py, "delete_group_item", py_fn!(py, delete_group_item(id: i64)))?;
         m.add(py, "get_group_items", py_fn!(py, get_group_items(gid: i64)))?;
 
+        m.add(py, "log_debug", py_fn!(py, log_debug(s: &str)))?;
+        m.add(py, "log_info", py_fn!(py, log_info(s: &str)))?;
+        m.add(py, "log_error", py_fn!(py, log_error(s: &str)))?;
+
         Ok(())
     });
 
@@ -184,6 +188,21 @@ fn delete_group_item(_py : Python, id: i64) -> PyResult<(u64)>{
     Ok(42)
 }
 
+fn log_debug(_py : Python, s: &str) -> PyResult<(u64)> {
+    debug!("[Frontend] {}", s);
+    Ok(42)
+}
+
+fn log_info(_py : Python, s: &str) -> PyResult<(u64)> {
+    info!("[Frontend] {}", s);
+    Ok(42)
+}
+
+fn log_error(_py : Python, s: &str) -> PyResult<(u64)> {
+    error!("[Frontend] {}", s);
+    Ok(42)
+}
+
 fn setup_logging(verbosity: u64, console_output_enabled: bool) -> Result<(), fern::InitError> {
     let mut base_config = fern::Dispatch::new();
 
@@ -213,7 +232,7 @@ fn setup_logging(verbosity: u64, console_output_enabled: bool) -> Result<(), fer
                 message
             ))
         })
-        .chain(fern::log_file("log-engine.txt")?);
+        .chain(fern::log_file("log.txt")?);
 
     let stdout_config = fern::Dispatch::new()
         .format(|out, message, record| {

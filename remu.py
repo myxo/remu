@@ -1,6 +1,5 @@
 import argparse
 import datetime
-import logging
 import subprocess
 import threading
 import time
@@ -13,7 +12,6 @@ import libremu_backend as engine
 import text_data as text
 import keyboards
 
-logging.basicConfig(filename='log.txt', format='[%(asctime)s] [%(levelname)s]  %(message)s', level=logging.DEBUG)
 
 f = open('token.id', 'r')
 token = f.read()
@@ -50,6 +48,8 @@ def handle_text(message):
     input_text = message.text
     id = message.chat.id
 
+    engine.log_debug("Processing input text message: %s. Bot state = %s"%(input_text, str(fsm[id].state)))
+
     if fsm[id].state == BotState.WAIT: 
         on_wait_status(message)
     
@@ -72,7 +72,7 @@ def handle_text(message):
         on_group_del_item_status(message)
     
     else:
-        logging.error("Unknown bot state: uid = " + str(id) + " state = " + str(fsm[id].state))
+        engine.log_error("Unknown bot state: uid = " + str(id) + " state = " + str(fsm[id].state))
         fsm[id].reset()
         handle_text(message)
 
@@ -204,16 +204,6 @@ def on_at_command(message):
     handle_calendar_call(message.chat.id)
 
 def on_group_command(message):
-    # id = message.from_user.id
-    # groups = engine.get_user_groups(id)
-    # if not groups:
-    #     bot.send(id, 'No groups.') # TODO: добавить группу
-    #     return
-    # [text_list, id_list] = list(zip(*groups))
-    # # fsm[id].state = BotState.GROUPE_CHOOSE
-    # keyboard = keyboards.groups(text_list, id_list)
-    # keyboard_message = bot.send_message(id, 'Choose group.', reply_markup=keyboard)
-    # fsm[id].data['message_id'] = keyboard_message.message_id
     choose_group_message(message.from_user.id)
 
 def on_add_group_command(message):
@@ -251,7 +241,7 @@ def change_month(call):
     chat_id = call.message.chat.id
     saved_date = current_shown_dates.get(chat_id)
     if saved_date is None:
-        logging.error("Called calendar change_month handler, but there no saved_date by " + str(chat_id) + " chat_id")
+        engine.log_error("Called calendar change_month handler, but there no saved_date by " + str(chat_id) + " chat_id")
         return
 
     year, month = saved_date
@@ -275,7 +265,7 @@ def get_day(call):
     chat_id = call.message.chat.id
     saved_date = current_shown_dates.get(chat_id)
     if(saved_date is None):
-        logging.error("Called calendar get_day handler, but there no saved_date by " + str(chat_id) + " chat_id")
+        engine.log_error("Called calendar get_day handler, but there no saved_date by " + str(chat_id) + " chat_id")
         return 
 
     day = call.data[13:]
@@ -295,6 +285,7 @@ def get_day(call):
 def on_select_group(call):
     uid = call.message.chat.id
     gid = int(call.data[3:])
+    engine.log_debug("Processing keyboard callback. Call.data = %s. Bot state = %s"%(call.data, str(fsm[uid].state)))
     if fsm[uid].state == BotState.GROUP_ADD_ITEM:
         text = fsm[uid].data['text']
         engine.add_group_item(gid, text)
@@ -322,6 +313,7 @@ def on_select_group(call):
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
     id = call.message.chat.id
+    engine.log_debug("Processing keyboard callback. Call.data = %s. Bot state = %s"%(call.data, str(fsm[id].state)))
     if call.message:
         if call.data == 'at':
             handle_calendar_call(id, call.message.text)
@@ -388,7 +380,7 @@ def choose_group_message(id, next_state=None, add_if_not_exist=False):
 
 @bot.message_handler(content_types=['voice'])
 def voice_processing(message):
-    logging.debug('Start to processing voice. File id = ' + message.voice.file_id)
+    engine.log_debug('Start to processing voice. File id = ' + message.voice.file_id)
     file_info = bot.get_file(message.voice.file_id)
     file = bot.download_file(file_info.file_path)
     if not os.path.exists('voice'):
@@ -410,7 +402,7 @@ def voice_processing(message):
                            stdout=subprocess.PIPE, 
                            stderr=subprocess.PIPE)
     err = proc.stderr.read()
-    if err: logging.error(err)
+    if err: engine.log_error(err)
 
     command = [
         'asrclient-cli.py',
@@ -426,9 +418,9 @@ def voice_processing(message):
         result.append(line)
     
     err = proc.stderr.read()
-    if err: logging.error(err)
+    if err: engine.log_error(err)
 
-    logging.info('Speech rec result: ' + str(result))
+    engine.log_info('Speech rec result: ' + str(result))
 
     if len(result) <= 1:
         bot.send_message(message.chat.id, "Can't recognize =(")
@@ -469,7 +461,7 @@ if __name__ == '__main__':
         try:
             bot.polling()
         except:
-            logging.error("I am down =(")
+            engine.log_error("I am down =(")
 
         if one_poll:
             break

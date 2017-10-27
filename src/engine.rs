@@ -101,6 +101,7 @@ impl Engine {
     }
 
     pub fn delete_rep_event(&mut self, event_id: i64){
+        info!("Delete {} rep event", event_id);
         self.data_base.delete_rep_event(event_id);
     }
 
@@ -109,6 +110,7 @@ impl Engine {
             error!("Can't add user to database. UID - <{}>, username - <{}>, chat_id - <{}>, tz - <{}>", 
                 uid, username, chat_id, tz);
         }
+        info!("Add new user id - {}, username - {}", uid, username);
     }
 
     pub fn get_user_chat_id_all(&self) -> Vec<i32> {
@@ -121,10 +123,12 @@ impl Engine {
 
     pub fn add_user_group(&self, uid: i64, group_name: &str){
         self.data_base.add_group(uid, group_name);
+        info!("<{}> add user group {}.", uid, group_name);
     }
 
     pub fn delete_user_group(&self, gid: i64){
         self.data_base.delete_group(gid);
+        info!("Delete {} group", gid);
     }
 
     pub fn get_group_items(&self, gid: i64) -> Vec<(String, i64)> {
@@ -133,10 +137,12 @@ impl Engine {
 
     pub fn add_group_item(&self, gid: i64, group_item: &str){
         self.data_base.add_group_item(gid, group_item);
+        info!("Added item {} to {}", group_item, gid);
     }
 
     pub fn delete_group_item(&self, id: i64){
         self.data_base.delete_group_item(id);
+        info!("Deleted group item {} ", id);
     }
 
     fn process_bad_command(&self) -> (String, i32) {
