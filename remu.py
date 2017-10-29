@@ -515,5 +515,6 @@ if __name__ == '__main__':
 
         if one_poll:
             break
+        time.sleep(2)
 
     engine.stop()
