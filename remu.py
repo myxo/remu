@@ -103,16 +103,20 @@ def on_wait_status(message):
         on_at_command(message)
 
     elif input_text.find('/group') == 0:
-        on_group_command(message)
+        # on_group_command(message)
+        pass
 
     elif input_text.find('/add_group') == 0:
-        on_add_group_command(message)
+        # on_add_group_command(message)
+        pass
 
     elif input_text.find('/del_group') == 0:
-        on_del_group_command(message)
+        # on_del_group_command(message)
+        pass
 
     elif input_text.find('/del_group_item') == 0:
-        on_del_group_item_command(message)
+        # on_del_group_item_command(message)
+        pass
 
     elif input_text.find('/list') == 0:
         on_list_command(message)
