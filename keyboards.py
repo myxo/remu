@@ -1,15 +1,15 @@
 from telebot import types
-import calendar
+import calendar as cal
 
 # This function copied from https://github.com/unmonoqueteclea/calendar-telegram
 def calendar(year,month):
     markup = types.InlineKeyboardMarkup()
     #First row - Month and Year
     row=[]
-    row.append(types.InlineKeyboardButton(calendar.month_name[month]+" "+str(year),callback_data="ignore"))
+    row.append(types.InlineKeyboardButton(cal.month_name[month]+" "+str(year),callback_data="ignore"))
     markup.row(*row)
 
-    my_calendar = calendar.monthcalendar(year, month)
+    my_calendar = cal.monthcalendar(year, month)
     for week in my_calendar:
         row=[]
         for day in week:
