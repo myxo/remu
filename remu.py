@@ -20,8 +20,8 @@ f.close()
 f = open('yandex_api.id', 'r')
 yandex_api_token = f.read()
 f.close()
-bot = telebot.TeleBot(token)
-fsm = {}
+bot = telebot.TeleBot(token, num_threads=8)
+fsm = {} # Finite State Machine
 current_shown_dates={} # TODO: get rid off
 
 class BotState(Enum):
