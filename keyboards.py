@@ -21,9 +21,35 @@ def calendar(year,month):
     #Last row - Buttons
     row=[]
     row.append(types.InlineKeyboardButton("<",callback_data="previous-month"))
-    row.append(types.InlineKeyboardButton(" ",callback_data="ignore"))
+    row.append(types.InlineKeyboardButton("today",callback_data="today"))
+    row.append(types.InlineKeyboardButton("tomorrow",callback_data="tomorrow"))
     row.append(types.InlineKeyboardButton(">",callback_data="next-month"))
     markup.row(*row)
+    return markup
+
+
+def hour():
+    markup = types.InlineKeyboardMarkup()
+    row = []
+    for i in range(24):
+        row.append(types.InlineKeyboardButton(str(i), callback_data="time_hour:" + str(i)))
+        if (i+1) % 8 == 0:
+            markup.row(*row)
+            row = []
+            
+    return markup
+
+
+def minutes():
+    markup = types.InlineKeyboardMarkup()
+    row = []
+    row.append(types.InlineKeyboardButton('00', callback_data='time_minute:00'))
+    row.append(types.InlineKeyboardButton('15', callback_data='time_minute:15'))
+    row.append(types.InlineKeyboardButton('30', callback_data='time_minute:30'))
+    row.append(types.InlineKeyboardButton('45', callback_data='time_minute:45'))
+    markup.row(*row)
+    row = []
+            
     return markup
 
 
