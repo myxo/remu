@@ -30,12 +30,12 @@ def calendar(year,month):
 
 def hour():
     markup = types.InlineKeyboardMarkup()
-    row = []
-    for i in range(24):
-        row.append(types.InlineKeyboardButton(str(i), callback_data="time_hour:" + str(i)))
-        if (i+1) % 8 == 0:
-            markup.row(*row)
-            row = []
+    row1 = [ types.InlineKeyboardButton(str(x*3), callback_data="time_hour:" + str(x*3)) for x in range(8)]
+    row2 = [ types.InlineKeyboardButton(str(x*3 + 1), callback_data="time_hour:" + str(x*3 + 1)) for x in range(8)]
+    row3 = [ types.InlineKeyboardButton(str(x*3 + 2), callback_data="time_hour:" + str(x*3 + 2)) for x in range(8)]
+    markup.row(*row1)
+    markup.row(*row2)
+    markup.row(*row3)
             
     return markup
 

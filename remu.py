@@ -375,8 +375,8 @@ def on_time_minutes(call):
     engine.log_debug("Processing button callback: %s"%(call.data))
     chat_id = call.message.chat.id
     minute = int(call.data[12:])
-    # message_id = fsm[chat_id].data['message_id']
-    # bot.delete_message(chat_id, message_id)
+    message_id = fsm[chat_id].data['message_id']
+    bot.delete_message(chat_id, message_id)
 
     hour = fsm[chat_id].data['hour'] 
     text = fsm[chat_id].data['text'] 
@@ -499,7 +499,9 @@ def handle_minutes_keyboard(chat_id):
 
     markup = keyboards.minutes()
     fsm[chat_id].state = BotState.AT_TIME
-    keyboard_message = bot.send_message(chat_id, "Please, choose minute", reply_markup=markup)
+    hour = fsm[chat_id].data['hour']
+    text = 'Ok, %d. Now choose minute.'%hour
+    keyboard_message = bot.send_message(chat_id, text, reply_markup=markup)
     fsm[chat_id].data['message_id'] = keyboard_message.message_id
 
 
