@@ -230,7 +230,10 @@ def on_start_command(message):
     bot.send_message(message.chat.id, 'Hello! ^_^\nType /help')
 
 def on_help_command(message):
-    bot.send_message(message.chat.id, text.main_help_message_ru, parse_mode='Markdown')
+    if message.text == '/help more':
+        bot.send_message(message.chat.id, text.detailed_help_message_ru, parse_mode='Markdown')
+    else:
+        bot.send_message(message.chat.id, text.main_help_message_ru, parse_mode='Markdown')
 
 def on_delete_rep_command(message):
     global fsm
@@ -453,7 +456,8 @@ def callback_inline(call):
 def delete_rep_event(message):
     event_id_str = message.text
     if not event_id_str.isdigit():
-        msg = bot.reply_to(message, 'You should write number')
+        msg = bot.reply_to(message, 'You should write number. Operation aborted.')
+        fsm[message.chat.id].reset()
         return
 
     event_id = int(event_id_str)-1
@@ -466,8 +470,8 @@ def delete_rep_event(message):
             bot.send_message(uid, base_error_message)
         fsm[message.chat.id].reset()
     else:
+        bot.send_message(message.chat.id, "Number is out of limit. Operation aborted.")
         fsm[message.chat.id].reset()
-        bot.send_message(message.chat.id, "Number is out of limit. Operation abort.")
 
 
 def handle_calendar_call(chat_id, text=None):
