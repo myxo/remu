@@ -443,6 +443,9 @@ def callback_inline(call):
             fsm[id].state = BotState.GROUP_ADD_ITEM
             fsm[id].data['text'] = call.message.text
             choose_group_message(id, next_state=BotState.GROUP_ADD_ITEM, add_if_not_exist=False)
+        elif call.data == 'Ok':
+            bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id)
+            return
         elif call.data != "Ok":
             call.message.text = call.data + " " + call.message.text
             handle_text(call.message)
