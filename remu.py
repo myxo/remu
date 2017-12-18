@@ -282,8 +282,9 @@ def on_list_command(message):
     text_list = engine.get_active_events(message.from_user.id)
     if not text_list:
         bot.send_message(message.chat.id, 'No current active event')
-    list_str = '\n'.join([ str(i+1) + ") " + key for i, key in enumerate(text_list)])
-    bot.send_message(message.chat.id, list_str, parse_mode='Markdown')
+    else:
+        list_str = '\n'.join([ str(i+1) + ") " + key for i, key in enumerate(text_list)])
+        bot.send_message(message.chat.id, list_str, parse_mode='Markdown')
 
 
 def on_del_group_item_command(message):
@@ -340,7 +341,7 @@ def get_day(call):
     else:
         bot.send_message(chat_id, 'Ok, ' + date.strftime(r'%b %d') + '. Now write the time and text of event.')
     bot.answer_callback_query(call.id, text="")
-    handle_time_keyboard(chat_id)
+    handle_hour_keyboard(chat_id)
 
 
 @bot.callback_query_handler(func=lambda call: call.data == 'today' or call.data == 'tomorrow')
@@ -614,6 +615,8 @@ if __name__ == '__main__':
             bot.polling()
         except:
             engine.log_error("I am down =(")
+            for key in fsm:
+                fsm.reset()
 
         if one_poll:
             break
