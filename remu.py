@@ -616,7 +616,7 @@ if __name__ == '__main__':
         except:
             engine.log_error("I am down =(")
             for key in fsm:
-                fsm.reset()
+                fsm[key].reset()
 
         if one_poll:
             break
