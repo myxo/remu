@@ -26,6 +26,8 @@ User=<your username>
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:<path to cargo>
 WorkingDirectory=<path to remu>
 ExecStart=<path to remu>/run.sh --release
+RestartSec=30
+Restart=always
 
 [Install]
 WantedBy=multi-user.target
