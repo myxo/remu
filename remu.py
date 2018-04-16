@@ -12,15 +12,11 @@ import libremu_backend as engine
 import text_data as text
 import keyboards
 
+import config
+
 base_error_message = 'There are some problem with request. Forward messages to @nikolay_klimov if you think this is a bag.'
 
-f = open('token.id', 'r')
-token = f.read()
-f.close()
-f = open('yandex_api.id', 'r')
-yandex_api_token = f.read()
-f.close()
-bot = telebot.TeleBot(token, num_threads=8)
+bot = telebot.TeleBot(config.tg_token, num_threads=4)
 fsm = {} # Finite State Machine
 current_shown_dates={} # TODO: get rid off
 
@@ -558,7 +554,7 @@ def voice_processing(message):
 
     command = [
         'asrclient-cli.py',
-        '--key=' + yandex_api_token,
+        '--key=' + config.yandex_api_token,
         '--silent',
         'voice/' + filename_wav
     ]

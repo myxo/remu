@@ -1,5 +1,3 @@
-// #![feature(drop_types_in_const)]
-#![feature(string_retain)]
 extern crate chrono;
 extern crate regex;
 #[macro_use]
