@@ -18,8 +18,6 @@ impl DataBase {
         conn.execute(sql_q::CREATE_USER_TABLE, &[]).expect("Cannot create user table");
         conn.execute(sql_q::CREATE_ACTIVE_EVENT_TABLE, &[]).expect("Cannot create active_event table");
         conn.execute(sql_q::CREATE_REP_EVENT_TABLE, &[]).expect("Cannot create scheduled_event table");
-        conn.execute(sql_q::CREATE_GROUP_TABLE, &[]).expect("Cannot create group table");
-        conn.execute(sql_q::CREATE_GROUP_ITEM_TABLE, &[]).expect("Cannot create group_item table");
         conn.execute(sql_q::PRAGMA_FOREING_KEY, &[]).expect("Cannot apply pragma foreing key");
         DataBase { conn: conn }
     }
@@ -166,78 +164,6 @@ impl DataBase {
 
         result
     }
-
-    pub fn add_group(&self, uid: i64, group_name: &str) -> bool{
-        let res = self.conn.execute(sql_q::INSERT_GROUP, &[&uid, &group_name]);
-        if res.is_err() {
-            error!("{} can't insert group {} in db. Reasone: {}", uid, group_name, res.unwrap_err());
-            return false;
-        }
-        true
-    }
-
-    pub fn delete_group(&self, gid: i64) -> bool{
-        let res = self.conn.execute(sql_q::DELETE_GROUP_ITEM_BY_GID, &[&gid]);
-        if res.is_err() {
-            error!("Can't delete group items by gid. Reasone: {}", res.unwrap_err());
-            return false;
-        }
-        let res = self.conn.execute(sql_q::DELETE_GROUP, &[&gid]);
-        if res.is_err() {
-            error!("Can't delete group from db. Reasone: {}", res.unwrap_err());
-            return false;
-        }
-        true
-    }
-
-    pub fn get_groups_names(&self, uid: i64) -> Vec<(String, i64)> {
-        let mut result = Vec::new();
-
-        let mut stmt = self.conn.prepare(sql_q::SELECT_ALL_GROUP_BY_UID).expect("error in sql connection prepare");
-        let command_iter = stmt.query_map(&[&uid], |row| {
-            (row.get(1), row.get(0))
-        }).expect("error in query map");
-
-        for command in command_iter {
-            result.push(command.unwrap());
-        }
-
-        result
-    }
-
-    pub fn add_group_item(&self, gid: i64, group_item: &str) -> bool{
-        let res = self.conn.execute(sql_q::INSERT_GROUP_ITEM, &[&gid, &group_item]);
-        if res.is_err() {
-            error!("Can't insert group item in db. Reasone: {}", res.unwrap_err());
-            return false;
-        }
-        true
-    }
-
-    pub fn delete_group_item(&self, id: i64) -> bool{
-        let res = self.conn.execute(sql_q::DELETE_GROUP_ITEM, &[&id]);
-        if res.is_err() {
-            error!("Can't delete group item from db. Reasone: {}", res.unwrap_err());
-            return false;
-        }
-        true
-    }
-
-    pub fn get_group_items(&self, gid: i64) -> Vec<(String, i64)> {
-        let mut result = Vec::new();
-
-        let mut stmt = self.conn.prepare(sql_q::SELECT_ALL_GROUP_ITEMS).expect("error in sql connection prepare");
-        let command_iter = stmt.query_map(&[&gid], |row| {
-            (row.get(1), row.get(0))
-        }).expect("error in query map");
-
-        for command in command_iter {
-            result.push(command.unwrap());
-        }
-
-        result
-    }
-
 
     fn put_one_time_event(&mut self, uid: i64, command: &OneTimeEventImpl) -> bool {
         let event_time = command.event_time.timestamp();

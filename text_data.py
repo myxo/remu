@@ -54,8 +54,4 @@ list - list of all reminders
 help - view help
 at - "at" command helper
 delete_rep - delete repetitive event
-group - show user groups
-add_group - add new group
-del_group - delete group
-del_group_item - delete item in group
 """

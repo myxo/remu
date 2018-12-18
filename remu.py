@@ -27,11 +27,6 @@ class BotState(Enum):
     AT_TIME             = 10
     AT_TIME_TEXT        = 3
     AFTER_INPUT         = 4
-    GROUPE_CHOOSE       = 5
-    GROUP_ADD_ITEM      = 6
-    GROUP_DEL_ITEM      = 7
-    GROUP_ADD           = 8
-    GROUP_DEL           = 9
 
 
 class FSMData:
@@ -71,15 +66,6 @@ def handle_text(message):
     elif fsm[id].state == BotState.AFTER_INPUT:
         on_after_input_status(message)
 
-    elif fsm[id].state == BotState.GROUP_ADD_ITEM:
-        on_group_add_item_status(message)
-
-    elif fsm[id].state == BotState.GROUP_DEL_ITEM:
-        on_group_del_item_status(message)
-    
-    elif fsm[id].state == BotState.GROUP_ADD:
-        on_group_add_status(message)
-
     elif fsm[id].state == BotState.AT_TIME:
         on_at_time_status(message)
     
@@ -101,22 +87,6 @@ def on_wait_status(message):
     
     elif input_text.find('/at') == 0:
         on_at_command(message)
-
-    elif input_text.find('/group') == 0:
-        # on_group_command(message)
-        pass
-
-    elif input_text.find('/add_group') == 0:
-        # on_add_group_command(message)
-        pass
-
-    elif input_text.find('/del_group') == 0:
-        # on_del_group_command(message)
-        pass
-
-    elif input_text.find('/del_group_item') == 0:
-        # on_del_group_item_command(message)
-        pass
 
     elif input_text.find('/list') == 0:
         on_list_command(message)
@@ -173,40 +143,6 @@ def on_after_input_status(message):
     fsm[id].reset()
 
 
-def on_group_add_item_status(message):
-    # should be cathced in keyboard handle
-    pass 
-
-def on_group_del_item_status(message):
-    id = message.chat.id
-    event_id_str = message.text
-    if not event_id_str.isdigit():
-        msg = bot.reply_to(message, 'You should write number')
-        return
-
-    event_id = int(event_id_str)-1
-    id_list = fsm[id].data['id_list']
-    if id_list and event_id >= 0 and event_id < len(id_list):
-        del_id = id_list[event_id]
-        if engine.delete_group_item(del_id):
-            bot.send_message(id, "Done.")
-        else:
-            bot.send_message(id, base_error_message)
-        fsm[id].reset()
-    else:
-        fsm[id].reset()
-        bot.send_message(id, "Number is out of limit. Operation abort.")
-    pass 
-
-def on_group_add_status(message):
-    id = message.chat.id
-    group_name = message.text
-    if engine.add_user_group(id, group_name):
-        bot.send_message(id, 'Done.')
-    else:
-        bot.send_message(id, base_error_message)
-    fsm[id].reset()
-
 # ------------------- command handlers
 
 
@@ -251,41 +187,6 @@ def on_delete_rep_command(message):
 
 def on_at_command(message):
     handle_calendar_call(message.chat.id)
-
-def on_group_command(message):
-    choose_group_message(message.from_user.id)
-
-def on_add_group_command(message):
-    uid = message.chat.id
-    offset = len('/add_group ')
-    if offset >= len(message.text):
-        bot.send_message(uid, 'You should write group name')
-    group_name = message.text[offset:]
-    if group_name == '':
-        fsm[uid].state = BotState.GROUP_ADD
-        bot.send_message(uid, 'Ok, write new group name')
-    else:
-        if engine.add_user_group(uid, group_name):
-            bot.send_message(uid, 'Done.')
-        else:
-            bot.send_message(uid, base_error_message)
-
-
-def on_del_group_command(message):
-    choose_group_message(message.chat.id, next_state=BotState.GROUP_DEL)
-
-def on_list_command(message):
-    text_list = engine.get_active_events(message.from_user.id)
-    if not text_list:
-        bot.send_message(message.chat.id, 'No current active event')
-    else:
-        list_str = '\n'.join([ str(i+1) + ") " + key for i, key in enumerate(text_list)])
-        bot.send_message(message.chat.id, list_str, parse_mode='Markdown')
-
-
-def on_del_group_item_command(message):
-    choose_group_message(message.chat.id, next_state=BotState.GROUP_DEL_ITEM)
-
 
 
 # --------------- Keyboard callback handlers 
@@ -390,66 +291,6 @@ def on_time_minutes(call):
     fsm[chat_id].reset()
 
 
-@bot.callback_query_handler(func=lambda call: call.data[0:3] == 'grp')
-def on_select_group(call):
-    engine.log_debug("Processing button callback: %s"%(call.data))
-    uid = call.message.chat.id
-    gid = int(call.data[3:])
-    engine.log_debug("Processing keyboard callback. Call.data = %s. Bot state = %s"%(call.data, str(fsm[uid].state)))
-    if fsm[uid].state == BotState.GROUP_ADD_ITEM:
-        text = fsm[uid].data['text']
-        if engine.add_group_item(gid, text):
-            bot.send_message(uid, 'Done')
-        else:
-            bot.send_message(uid, base_error_message)
-    elif fsm[uid].state == BotState.GROUP_DEL:
-        if engine.delete_user_group(gid):
-            bot.send_message(uid, 'Done')
-        else:
-            bot.send_message(uid, base_error_message)
-    else:
-        items = engine.get_group_items(gid)
-        if items:
-            [text_list, id_list] = list(zip(*items)) # TODO: add group name
-            text = '\n'.join([ str(i+1) + ') ' + item for i, item in enumerate(text_list) ])
-            fsm[uid].data['id_list'] = id_list
-            bot.send_message(uid, text)
-        else:
-            bot.send_message(uid, 'No items in group')
-
-    bot.delete_message(uid, fsm[uid].data['message_id'])
-    if fsm[uid].state == BotState.GROUP_DEL_ITEM:
-        bot.send_message(uid, 'Choose element to delete')
-    else:
-        fsm[uid].reset()
-
-
-@bot.callback_query_handler(func=lambda call: True)
-def callback_inline(call):
-    engine.log_debug("Processing button callback: %s"%(call.data))
-    id = call.message.chat.id
-    engine.log_debug("Processing keyboard callback. Call.data = %s. Bot state = %s"%(call.data, str(fsm[id].state)))
-    if call.message:
-        if call.data == 'at':
-            handle_calendar_call(id, call.message.text)
-        elif call.data == 'after':
-            fsm[id].state = BotState.AFTER_INPUT
-            fsm[id].data['text'] = call.message.text
-            bot.send_message(id, 'Ok, now write time duration.')
-        elif call.data == 'group':
-            fsm[id].state = BotState.GROUP_ADD_ITEM
-            fsm[id].data['text'] = call.message.text
-            choose_group_message(id, next_state=BotState.GROUP_ADD_ITEM, add_if_not_exist=False)
-        elif call.data == 'Ok':
-            bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id)
-            return
-        elif call.data != "Ok":
-            call.message.text = call.data + " " + call.message.text
-            handle_text(call.message)
-        bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
-
-
-
 # ------------- helper function
 
 
@@ -507,23 +348,6 @@ def handle_minutes_keyboard(chat_id):
     text = 'Ok, %d. Now choose minute.'%hour
     keyboard_message = bot.send_message(chat_id, text, reply_markup=markup)
     fsm[chat_id].data['message_id'] = keyboard_message.message_id
-
-
-def choose_group_message(id, next_state=None, add_if_not_exist=False):
-    groups = engine.get_user_groups(id)
-    if not groups:
-        if add_if_not_exist:
-            fsm[id].state = BotState.GROUP_ADD
-            bot.send_message(id, 'There is not group yet. Write name for your new group')
-        else:
-            bot.send_message(id, 'No groups.')
-        return
-    [text_list, id_list] = list(zip(*groups))
-    if next_state:
-        fsm[id].state = next_state
-    keyboard = keyboards.groups(text_list, id_list)
-    keyboard_message = bot.send_message(id, 'Choose group.', reply_markup=keyboard)
-    fsm[id].data['message_id'] = keyboard_message.message_id
 
 
 @bot.message_handler(content_types=['voice'])

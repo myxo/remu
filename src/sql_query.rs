@@ -30,23 +30,6 @@ pub const CREATE_REP_EVENT_TABLE: &str =
         FOREIGN KEY(uid)    REFERENCES user(uid)
     )";
 
-pub const CREATE_GROUP_TABLE: &str = 
-    "CREATE TABLE IF NOT EXISTS group_list(
-        gid                 INTEGER PRIMARY KEY AUTOINCREMENT,
-        uid                 INTEGER NOT NULL,
-        group_name          TEXT NOT NULL,
-        FOREIGN KEY(uid)    REFERENCES user(uid)
-    )";
-
-pub const CREATE_GROUP_ITEM_TABLE: &str = 
-    "CREATE TABLE IF NOT EXISTS group_item(
-        id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-        gid                 INTEGER NOT NULL,
-        group_item          TEXT,
-        FOREIGN KEY(gid)    REFERENCES group_list(gid)
-    )";
-
-
 // SQL user --------------------------------------------
 
 pub const INSERT_USER: &str =
@@ -95,29 +78,3 @@ pub const DELETE_FROM_REP_BY_ID: &str =
 pub const SELECT_ALL_REP_BY_UID_LIMIT: &str = 
     "SELECT id, event_text, event_time, event_wait FROM scheduled_event WHERE uid = ?1 ORDER BY event_time LIMIT 20;";
 
-
-// SQL group
-
-pub const INSERT_GROUP: &str = 
-    "INSERT INTO group_list(uid, group_name) VALUES (?1, ?2);";
-
-pub const DELETE_GROUP: &str = 
-    "DELETE FROM group_list WHERE gid = ?1;";
-
-pub const SELECT_ALL_GROUP_BY_UID: &str = 
-    "SELECT gid, group_name FROM group_list WHERE uid = ?1;";
-
-
-// SQK group item
-
-pub const INSERT_GROUP_ITEM: &str = 
-    "INSERT INTO group_item(gid, group_item) VALUES (?1, ?2);";
-
-pub const DELETE_GROUP_ITEM: &str = 
-    "DELETE FROM group_item WHERE id = ?1;";
-
-pub const DELETE_GROUP_ITEM_BY_GID: &str = 
-    "DELETE FROM group_item WHERE gid = ?1;";
-
-pub const SELECT_ALL_GROUP_ITEMS: &str = 
-    "SELECT id, group_item FROM group_item WHERE gid = ?1;";

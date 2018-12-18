@@ -55,7 +55,6 @@ def minutes():
 
 def action():
     keyboard = types.InlineKeyboardMarkup()
-    # callback_button_gr = types.InlineKeyboardButton(text="group", callback_data="group")
     callback_button_at = types.InlineKeyboardButton(text="at", callback_data="at")
     callback_button_after = types.InlineKeyboardButton(text="after", callback_data="after")
     keyboard.add(callback_button_at, callback_button_after)
@@ -69,12 +68,4 @@ def action():
     callback_button_1d = types.InlineKeyboardButton(text="1d", callback_data="1d")
     callback_button_ok = types.InlineKeyboardButton(text="Ok", callback_data="Ok")
     keyboard.add(callback_button_3h, callback_button_1d, callback_button_ok)
-    return keyboard
-
-
-def groups(text_list, id_list):
-    keyboard = types.InlineKeyboardMarkup()
-    for i, text in enumerate(text_list):
-        callback_button = types.InlineKeyboardButton(text=text, callback_data='grp'+str(id_list[i]))
-        keyboard.add(callback_button)
     return keyboard
