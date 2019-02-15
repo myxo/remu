@@ -382,13 +382,14 @@ def on_time_minutes(call):
 
     hour = fsm[chat_id].data['hour'] 
     text = fsm[chat_id].data['text'] 
-    date_spec = fsm[chat_id].data['date_spec'] 
-    result_command = date_spec + ' at ' + str(hour) + '.' + str(minute) + ' ' + text
-    (reply, err) = engine.handle_text_message(chat_id, result_command)
-    if err:
-        bot.send_message(chat_id, base_error_message)
-    else:
-        bot.send_message(chat_id, reply)
+    date_spec = fsm[chat_id].data['date_spec']
+    if hour is not None and minute is not None:
+        result_command = date_spec + ' at ' + str(hour) + '.' + str(minute) + ' ' + text
+        (reply, err) = engine.handle_text_message(chat_id, result_command)
+        if err:
+            bot.send_message(chat_id, base_error_message)
+        else:
+            bot.send_message(chat_id, reply)
     fsm[chat_id].reset()
 
 
@@ -445,6 +446,8 @@ def callback_inline(call):
         elif call.data == 'Ok':
             bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id)
             return
+        elif call.data == 'ignore':
+            fsm[id].reset() 
         elif call.data != "Ok":
             call.message.text = call.data + " " + call.message.text
             handle_text(call.message)
