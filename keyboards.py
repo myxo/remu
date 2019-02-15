@@ -2,7 +2,7 @@ from telebot import types
 import calendar as cal
 
 # This function copied from https://github.com/unmonoqueteclea/calendar-telegram
-def calendar(year,month):
+def calendar(year, month, highlight_day = None):
     markup = types.InlineKeyboardMarkup()
     #First row - Month and Year
     row=[]
@@ -16,7 +16,10 @@ def calendar(year,month):
             if(day==0):
                 row.append(types.InlineKeyboardButton(" ",callback_data="ignore"))
             else:
-                row.append(types.InlineKeyboardButton(str(day),callback_data="calendar-day-"+str(day)))
+                day_str = str(day)
+                if (highlight_day is not None and day == highlight_day):
+                    day_str = '|' + day_str + '|'
+                row.append(types.InlineKeyboardButton(day_str,callback_data="calendar-day-"+str(day)))
         markup.row(*row)
     #Last row - Buttons
     row=[]

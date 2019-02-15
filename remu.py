@@ -311,8 +311,10 @@ def change_month(call):
         if month < 1:
             month, year = (12, year-1)
 
+    now = datetime.datetime.now()
+    cur_day = now.day if now.month == month and now.year == year else None
     current_shown_dates[chat_id] = (year, month)
-    markup = keyboards.calendar(year, month)
+    markup = keyboards.calendar(year, month, cur_day)
     bot.edit_message_text("Please, choose a date", call.from_user.id, call.message.message_id, reply_markup=markup)
     bot.answer_callback_query(call.id, text="")
 
@@ -478,7 +480,8 @@ def handle_calendar_call(chat_id, text=None):
     now = datetime.datetime.now()
     date = (now.year,now.month)
     current_shown_dates[chat_id] = date
-    markup = keyboards.calendar(now.year,now.month)
+    
+    markup = keyboards.calendar(now.year, now.month, now.day)
     fsm[chat_id].state = BotState.AT_CALENDAR
     fsm[chat_id].data['text'] = text
     keyboard_message = bot.send_message(chat_id, "Please, choose a date", reply_markup=markup)
