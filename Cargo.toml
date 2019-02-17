@@ -2,6 +2,7 @@
 name = "remu"
 version = "0.1.0"
 authors = ["Klimov Nikolay <klimov.ns@mail.ru>"]
+edition = "2018"
 
 [lib]
 name = "remu_backend"

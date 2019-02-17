@@ -42,6 +42,13 @@ class FSMData:
 def handle_text(message):
     input_text = message.text
     id = message.chat.id
+    (command, text, error) = engine.handle_text_message(message.chat.id, input_text)
+    if error == 0 and command == 'send_message':
+        bot.send_message(message.chat.id, text)
+    # else:
+    #     keyboard = keyboards.action()
+    #     bot.send_message(id, input_text, reply_markup=keyboard)
+    return
 
     # Special case
     if input_text.find('/start') == 0:

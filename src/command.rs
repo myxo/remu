@@ -178,7 +178,7 @@ fn get_datetime_from_capture(cap: &Captures, tz: i32) -> Option<DateTime<Utc>>{
 #[cfg(test)]
 mod tests {
     use super::*;
-    use command::Command::*;
+    use crate::command::Command::*;
 
     #[test]
     fn parse_for_general() {

@@ -29,13 +29,13 @@ py_module_initializer!(libremu_backend,
         m.add(py, "initialize", py_fn!(py, initialize(verbose: bool)))?;
         m.add(py, "run", py_fn!(py, run()))?;
         m.add(py, "stop", py_fn!(py, stop()))?;
-        m.add(py, "register_callback", py_fn!(py, register_callback(obj: PyObject)))?;
         m.add(py, "add_user", py_fn!(py, add_user(uid: i64, username: &str, chat_id: i64, first_name: &str, last_name: &str, tz: i32)))?;
         m.add(py, "handle_text_message", py_fn!(py, handle_text_message(uid: i64, message: &str)))?;
-        m.add(py, "get_active_events", py_fn!(py, get_active_events(uid: i64)))?;
-        m.add(py, "get_rep_events", py_fn!(py, get_rep_events(uid: i64)))?;
-        m.add(py, "del_rep_event", py_fn!(py, del_rep_event(event_id: i64)))?;
+        m.add(py, "handle_keyboard_responce", py_fn!(py, handle_keyboard_responce(uid: i64, message: &str)))?;
+
         m.add(py, "get_user_chat_id_all", py_fn!(py, get_user_chat_id_all()))?;
+        
+        m.add(py, "register_callback", py_fn!(py, register_callback(obj: PyObject)))?;
 
         m.add(py, "log_debug", py_fn!(py, log_debug(s: &str)))?;
         m.add(py, "log_info", py_fn!(py, log_info(s: &str)))?;
@@ -77,28 +77,15 @@ fn add_user(_py : Python, uid: i64, username: &str, chat_id: i64, first_name: &s
     }
 }
 
-fn handle_text_message(_py : Python, uid: i64, message : &str) -> PyResult<(String, i32)>{
+fn handle_text_message(_py : Python, uid: i64, message : &str) -> PyResult<(String, String, i32)>{
     unsafe{
         Ok(ENG.as_mut().expect("initialize engine!").handle_text_message(uid, message))
     }
 }
 
-
-fn get_active_events(_py : Python, uid: i64) -> PyResult<Vec<String>>{
+fn handle_keyboard_responce(_py : Python, uid: i64, message : &str) -> PyResult<(String, i32)>{
     unsafe{
-        Ok(ENG.as_mut().expect("initialize engine!").get_active_event_list(uid))
-    }
-}
-
-fn get_rep_events(_py : Python, uid: i64) -> PyResult<Vec<(String, i64)>>{
-    unsafe{
-        Ok(ENG.as_mut().expect("initialize engine!").get_rep_event_list(uid))
-    }
-}
-
-fn del_rep_event(_py: Python, event_id: i64) -> PyResult<bool> {
-    unsafe{
-        Ok(ENG.as_mut().expect("initialize engine!").delete_rep_event(event_id))
+        Ok(ENG.as_mut().expect("initialize engine!").handle_keyboard_responce(uid, message))
     }
 }
 
