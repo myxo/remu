@@ -77,13 +77,13 @@ fn add_user(_py : Python, uid: i64, username: &str, chat_id: i64, first_name: &s
     }
 }
 
-fn handle_text_message(_py : Python, uid: i64, message : &str) -> PyResult<(String, String, i32)>{
+fn handle_text_message(_py : Python, uid: i64, message : &str) -> PyResult<String>{
     unsafe{
         Ok(ENG.as_mut().expect("initialize engine!").handle_text_message(uid, message))
     }
 }
 
-fn handle_keyboard_responce(_py : Python, uid: i64, message : &str) -> PyResult<(String, i32)>{
+fn handle_keyboard_responce(_py : Python, uid: i64, message : &str) -> PyResult<String>{
     unsafe{
         Ok(ENG.as_mut().expect("initialize engine!").handle_keyboard_responce(uid, message))
     }
