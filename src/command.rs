@@ -1,7 +1,7 @@
 extern crate chrono;
 
 use chrono::prelude::*;
-use regex::{Regex, Captures};
+use regex::{Captures, Regex};
 
 #[derive(Debug)]
 pub enum Command {
@@ -11,31 +11,27 @@ pub enum Command {
 }
 
 #[derive(Debug)]
-pub struct OneTimeEventImpl{
-    pub event_time : DateTime<Utc>,
-    pub event_text : String,
+pub struct OneTimeEventImpl {
+    pub event_time: DateTime<Utc>,
+    pub event_text: String,
 }
 
 #[derive(Debug)]
-pub struct RepetitiveEventImpl{
-    pub event_start_time : DateTime<Utc>,
-    pub event_wait_time : chrono::Duration,
-    pub event_text : String,
+pub struct RepetitiveEventImpl {
+    pub event_start_time: DateTime<Utc>,
+    pub event_wait_time: chrono::Duration,
+    pub event_text: String,
 }
 
-
-const MOMENT_DAY_REGEX: &str = 
+const MOMENT_DAY_REGEX: &str =
     r"(?:(?P<m_day>[\d]+))?(?:-(?P<m_month>[\d]+))?(?:-(?P<m_year>[\d]+))?";
 
-const MOMENT_TIME_REGEX: &str = 
-    r"(?P<m_hour>[\d]+)(?:[.|:](?P<m_minute>[\d]+))?";
+const MOMENT_TIME_REGEX: &str = r"(?P<m_hour>[\d]+)(?:[.|:](?P<m_minute>[\d]+))?";
 
-const DURATION_REGEX: &str = 
+const DURATION_REGEX: &str =
     r"(:?(?P<d_day>[\d]*)[D|d|Д|д])?(:?(?P<d_hour>[\d]*)[H|h|Ч|ч])?(:?(?P<d_minute>[\d]*)[M|m|М|м])?(:?(?P<d_second>[\d]*)[S|s|С|с])?";
 
-
-
-pub fn parse_command(command_line : String, user_timezone: i32) -> Command {
+pub fn parse_command(command_line: String, user_timezone: i32) -> Command {
     let command_line = String::from(command_line.trim());
     let mut result;
     result = try_parse_for(&command_line);
@@ -53,17 +49,21 @@ pub fn parse_command(command_line : String, user_timezone: i32) -> Command {
         return result.unwrap();
     }
 
-    warn!("parse_command: line {} doesn't match any regex", command_line);
+    warn!(
+        "parse_command: line {} doesn't match any regex",
+        command_line
+    );
     Command::BadCommand
 }
 
-
-fn try_parse_at(command_line : &String, user_timezone: i32) -> Option<Command>{
-    let reg = String::from(r"^") + MOMENT_DAY_REGEX + r"\s*(at|At|в|В)\s*" + MOMENT_TIME_REGEX + r" (?P<main_text>.*)";
+fn try_parse_at(command_line: &String, user_timezone: i32) -> Option<Command> {
+    let reg = format!(
+        r"^{}\s*(at|At|в|В)\s*{} (?P<main_text>.*)",
+        MOMENT_DAY_REGEX, MOMENT_TIME_REGEX
+    );
     let time_format = Regex::new(&reg[..]).unwrap();
 
     let date_captures = time_format.captures(command_line);
-
 
     if date_captures.is_none() {
         return None;
@@ -71,22 +71,21 @@ fn try_parse_at(command_line : &String, user_timezone: i32) -> Option<Command>{
     let date_captures = date_captures.unwrap();
     let text = date_captures.name("main_text").unwrap().as_str();
 
-    if let Some(t) = get_datetime_from_capture(&date_captures, user_timezone){
-        return Some(Command::OneTimeEvent
-                (OneTimeEventImpl 
-                    { event_text : String::from(text)
-                    , event_time : t} 
-                ));
+    if let Some(t) = get_datetime_from_capture(&date_captures, user_timezone) {
+        return Some(Command::OneTimeEvent(OneTimeEventImpl {
+            event_text: String::from(text),
+            event_time: t,
+        }));
     }
-    None 
+    None
 }
 
-fn try_parse_for(command_line : &String) -> Option<Command>{
+fn try_parse_for(command_line: &String) -> Option<Command> {
     let reg = String::from("^") + DURATION_REGEX + r"(?P<divider> )(?P<main_text>.*)";
     let reg = Regex::new(&reg[..]).unwrap();
 
     let capture = reg.captures(command_line);
-    if capture.is_none(){
+    if capture.is_none() {
         return None;
     }
     let capture = capture.unwrap();
@@ -97,22 +96,21 @@ fn try_parse_for(command_line : &String) -> Option<Command>{
         return None;
     }
 
-    Some(Command::OneTimeEvent(OneTimeEventImpl 
-            { event_text : String::from(text)
-            , event_time : Utc::now() + dt.unwrap() } 
-        ))
+    Some(Command::OneTimeEvent(OneTimeEventImpl {
+        event_text: String::from(text),
+        event_time: Utc::now() + dt.unwrap(),
+    }))
 }
 
-
 fn try_parse_rep(command_line: &String, user_timezone: i32) -> Option<Command> {
-    let reg = String::from("^") + r"rep\s*" + MOMENT_DAY_REGEX 
-                                + r"\s+"    + MOMENT_TIME_REGEX
-                                + r"\s+"    + DURATION_REGEX 
-                                + r"(?P<divider> )(?P<main_text>.*)";
+    let reg = format!(
+        r"^rep\s*{}\s+{}\s+{}(?P<divider> )(?P<main_text>.*)",
+        MOMENT_DAY_REGEX, MOMENT_TIME_REGEX, DURATION_REGEX
+    );
     let reg = Regex::new(&reg[..]).unwrap();
 
     let capture = reg.captures(command_line);
-    if capture.is_none(){
+    if capture.is_none() {
         return None;
     }
     let capture = capture.unwrap();
@@ -123,17 +121,15 @@ fn try_parse_rep(command_line: &String, user_timezone: i32) -> Option<Command> {
     if time.is_none() || dt.is_none() {
         return None;
     }
-    
-    Some(Command::RepetitiveEvent(RepetitiveEventImpl
-        {
-            event_start_time : time.unwrap(),
-            event_wait_time : dt.unwrap(),
-            event_text : String::from(text),
-        }
-    ))
+
+    Some(Command::RepetitiveEvent(RepetitiveEventImpl {
+        event_start_time: time.unwrap(),
+        event_wait_time: dt.unwrap(),
+        event_text: String::from(text),
+    }))
 }
 
-
+#[rustfmt::skip]
 fn get_duration_from_capture(cap: &Captures) -> Option<chrono::Duration>{
     let day:    i64 = cap.name("d_day").map_or    (0, |c| c.as_str().parse().unwrap() );
     let hour:   i64 = cap.name("d_hour").map_or   (0, |c| c.as_str().parse().unwrap() );
@@ -150,7 +146,7 @@ fn get_duration_from_capture(cap: &Captures) -> Option<chrono::Duration>{
                                  + second))
 }
 
-
+#[rustfmt::skip]
 fn get_datetime_from_capture(cap: &Captures, tz: i32) -> Option<DateTime<Utc>>{
     let dt = chrono::Duration::seconds((tz as i64) * 60 * 60);
     let now = Utc::now() - dt;
@@ -171,9 +167,7 @@ fn get_datetime_from_capture(cap: &Captures, tz: i32) -> Option<DateTime<Utc>>{
     None
 }
 
-
 //-------- TESTS ---------------------------------------------------------------
-
 
 #[cfg(test)]
 mod tests {
@@ -185,19 +179,20 @@ mod tests {
         let command = String::from("1d2h3m4s");
         let text = "some text";
         let command_text = command + " " + text;
-        let dt = chrono::Duration::seconds((1 as i64) * (60*60*24)  // days
-                                        + (2 as i64) * (60*60)      // hours
-                                        + (3 as i64) * 60           // minutes
-                                        + (4 as i64)                // seconds
-                                        );
+        let dt = chrono::Duration::seconds(
+            (1 as i64) * (60*60*24)  // days
+            + (2 as i64) * (60*60)   // hours
+            + (3 as i64) * 60        // minutes
+            + (4 as i64), // seconds
+        );
         let result = try_parse_for(&command_text);
         assert!(result.is_some());
-        match result.unwrap(){
+        match result.unwrap() {
             OneTimeEvent(res) => {
                 assert_eq!(res.event_text, text);
                 assert!(time_moment_eq(res.event_time, Utc::now() + dt));
-            },
-            _ => panic!("Wrong command type")
+            }
+            _ => panic!("Wrong command type"),
         };
     }
 
@@ -206,19 +201,20 @@ mod tests {
         let command = String::from("2h30m");
         let text = "some text";
         let command_text = command + " " + text;
-        let dt = chrono::Duration::seconds((0 as i64) * (60*60*24)  // days
-                                        + (2 as i64) * (60*60)      // hours
-                                        + (30 as i64) * 60           // minutes
-                                        + (0 as i64)                // seconds
-                                        );
+        let dt = chrono::Duration::seconds(
+            (0 as i64) * (60*60*24)  // days
+            + (2 as i64) * (60*60)   // hours
+            + (30 as i64) * 60       // minutes
+            + (0 as i64), // seconds
+        );
         let result = try_parse_for(&command_text);
         assert!(result.is_some());
-        match result.unwrap(){
+        match result.unwrap() {
             OneTimeEvent(res) => {
                 assert_eq!(res.event_text, text);
                 assert!(time_moment_eq(res.event_time, Utc::now() + dt));
-            },
-            _ => panic!("Wrong command type")
+            }
+            _ => panic!("Wrong command type"),
         };
     }
 
@@ -249,16 +245,16 @@ mod tests {
             let text = "some text";
             let command_text = command + " " + text;
             let now = Utc::now();
-            let t = Utc.ymd(now.year(), 10, 24).and_hms(18-3, 30, 0);
+            let t = Utc.ymd(now.year(), 10, 24).and_hms(18 - 3, 30, 0);
 
             let result = try_parse_at(&command_text, -3);
             assert!(result.is_some());
-            match result.unwrap(){
+            match result.unwrap() {
                 OneTimeEvent(res) => {
                     assert_eq!(res.event_text, text);
                     assert_eq!(res.event_time, t);
-                },
-                _ => panic!("Wrong command type")
+                }
+                _ => panic!("Wrong command type"),
             };
         }
 
@@ -267,16 +263,16 @@ mod tests {
             let text = "some text";
             let command_text = command + " " + text;
             let now = Utc::now();
-            let t = Utc.ymd(now.year(), now.month(), 24).and_hms(18-3, 30, 0);
+            let t = Utc.ymd(now.year(), now.month(), 24).and_hms(18 - 3, 30, 0);
 
             let result = try_parse_at(&command_text, -3);
             assert!(result.is_some());
-            match result.unwrap(){
+            match result.unwrap() {
                 OneTimeEvent(res) => {
                     assert_eq!(res.event_text, text);
                     assert_eq!(res.event_time, t);
-                },
-                _ => panic!("Wrong command type")
+                }
+                _ => panic!("Wrong command type"),
             };
         }
         {
@@ -284,16 +280,18 @@ mod tests {
             let text = "some text";
             let command_text = command + " " + text;
             let now = Utc::now();
-            let t = Utc.ymd(now.year(), now.month(), now.day()).and_hms(18, 30, 0);
+            let t = Utc
+                .ymd(now.year(), now.month(), now.day())
+                .and_hms(18, 30, 0);
 
             let result = try_parse_at(&command_text, 0);
             assert!(result.is_some());
-            match result.unwrap(){
+            match result.unwrap() {
                 OneTimeEvent(res) => {
                     assert_eq!(res.event_text, text);
                     assert_eq!(res.event_time, t);
-                },
-                _ => panic!("Wrong command type")
+                }
+                _ => panic!("Wrong command type"),
             };
         }
         {
@@ -301,16 +299,18 @@ mod tests {
             let text = "some text";
             let command_text = command + " " + text;
             let now = Utc::now();
-            let t = Utc.ymd(now.year(), now.month(), now.day()).and_hms(18, 0, 0);
+            let t = Utc
+                .ymd(now.year(), now.month(), now.day())
+                .and_hms(18, 0, 0);
 
             let result = try_parse_at(&command_text, 0);
             assert!(result.is_some());
-            match result.unwrap(){
+            match result.unwrap() {
                 OneTimeEvent(res) => {
                     assert_eq!(res.event_text, text);
                     assert_eq!(res.event_time, t);
-                },
-                _ => panic!("Wrong command type")
+                }
+                _ => panic!("Wrong command type"),
             };
         }
     }
@@ -357,26 +357,26 @@ mod tests {
         let text = "test rep";
         let command_text = command + " " + text;
         let now = Utc::now();
-        let t = Utc.ymd(now.year(), 10, 6).and_hms(10-3, 0, 0);
-        let dt = chrono::Duration::seconds((0 as i64) * (60*60*24)  // days
-                                        + (0 as i64) * (60*60)      // hours
-                                        + (5 as i64) * 60           // minutes
-                                        + (0 as i64)                // seconds
-                                        );
+        let t = Utc.ymd(now.year(), 10, 6).and_hms(10 - 3, 0, 0);
+        let dt = chrono::Duration::seconds(
+            (0 as i64) * (60*60*24)  // days
+            + (0 as i64) * (60*60)      // hours
+            + (5 as i64) * 60           // minutes
+            + (0 as i64), // seconds
+        );
         let result = try_parse_rep(&command_text, -3);
         assert!(result.is_some());
-        match result.unwrap(){
+        match result.unwrap() {
             RepetitiveEvent(res) => {
                 assert_eq!(res.event_start_time, t);
                 assert_eq!(res.event_wait_time, dt);
                 assert_eq!(res.event_text, text);
-            },
-            _ => panic!("Wrong command type")
+            }
+            _ => panic!("Wrong command type"),
         };
     }
 
-
-    fn time_moment_eq(t1: DateTime<Utc>, t2: DateTime<Utc>) -> bool{
+    fn time_moment_eq(t1: DateTime<Utc>, t2: DateTime<Utc>) -> bool {
         t1.signed_duration_since(t2).num_milliseconds().abs() < 100
     }
 }
