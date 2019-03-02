@@ -56,19 +56,14 @@ pub fn parse_command(command_line: String, user_timezone: i32) -> Command {
     Command::BadCommand
 }
 
-fn try_parse_at(command_line: &String, user_timezone: i32) -> Option<Command> {
+fn try_parse_at(command_line: &str, user_timezone: i32) -> Option<Command> {
     let reg = format!(
         r"^{}\s*(at|At|в|В)\s*{} (?P<main_text>.*)",
         MOMENT_DAY_REGEX, MOMENT_TIME_REGEX
     );
     let time_format = Regex::new(&reg[..]).unwrap();
 
-    let date_captures = time_format.captures(command_line);
-
-    if date_captures.is_none() {
-        return None;
-    }
-    let date_captures = date_captures.unwrap();
+    let date_captures = time_format.captures(command_line)?;
     let text = date_captures.name("main_text").unwrap().as_str();
 
     if let Some(t) = get_datetime_from_capture(&date_captures, user_timezone) {
@@ -80,25 +75,18 @@ fn try_parse_at(command_line: &String, user_timezone: i32) -> Option<Command> {
     None
 }
 
-fn try_parse_for(command_line: &String) -> Option<Command> {
+fn try_parse_for(command_line: &str) -> Option<Command> {
     let reg = String::from("^") + DURATION_REGEX + r"(?P<divider> )(?P<main_text>.*)";
     let reg = Regex::new(&reg[..]).unwrap();
 
-    let capture = reg.captures(command_line);
-    if capture.is_none() {
-        return None;
-    }
-    let capture = capture.unwrap();
+    let capture = reg.captures(command_line)?;
 
     let text = capture.name("main_text").unwrap().as_str();
-    let dt = get_duration_from_capture(&capture);
-    if dt.is_none() {
-        return None;
-    }
+    let dt = get_duration_from_capture(&capture)?;
 
     Some(Command::OneTimeEvent(OneTimeEventImpl {
         event_text: String::from(text),
-        event_time: Utc::now() + dt.unwrap(),
+        event_time: Utc::now() + dt,
     }))
 }
 

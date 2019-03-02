@@ -23,7 +23,7 @@ impl DataBase {
             .expect("Cannot create scheduled_event table");
         conn.execute(sql_q::PRAGMA_FOREING_KEY, &[])
             .expect("Cannot apply pragma foreing key");
-        DataBase { conn: conn }
+        DataBase { conn }
     }
 
     pub fn add_user(
@@ -56,10 +56,10 @@ impl DataBase {
         match value {
             Command::BadCommand => {
                 warn!("Can't put BadCommand in database");
-                return false;
+                false
             }
-            Command::OneTimeEvent(ev) => return self.put_one_time_event(uid, &ev),
-            Command::RepetitiveEvent(ev) => return self.put_repetitive_event(uid, &ev),
+            Command::OneTimeEvent(ev) => self.put_one_time_event(uid, &ev),
+            Command::RepetitiveEvent(ev) => self.put_repetitive_event(uid, &ev),
         }
     }
 
@@ -301,6 +301,6 @@ fn get_nearest_active_event_from_repetitive_params(
     }
     OneTimeEventImpl {
         event_text: text,
-        event_time: event_time,
+        event_time,
     }
 }
