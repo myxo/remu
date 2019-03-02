@@ -31,7 +31,7 @@ py_module_initializer!(libremu_backend,
         m.add(py, "stop", py_fn!(py, stop()))?;
         m.add(py, "add_user", py_fn!(py, add_user(uid: i64, username: &str, chat_id: i64, first_name: &str, last_name: &str, tz: i32)))?;
         m.add(py, "handle_text_message", py_fn!(py, handle_text_message(uid: i64, message: &str)))?;
-        m.add(py, "handle_keyboard_responce", py_fn!(py, handle_keyboard_responce(uid: i64, message: &str)))?;
+        m.add(py, "handle_keyboard_responce", py_fn!(py, handle_keyboard_responce(uid: i64, call_data: &str, msg_text: &str)))?;
 
         m.add(py, "get_user_chat_id_all", py_fn!(py, get_user_chat_id_all()))?;
         
@@ -83,9 +83,9 @@ fn handle_text_message(_py : Python, uid: i64, message : &str) -> PyResult<Strin
     }
 }
 
-fn handle_keyboard_responce(_py : Python, uid: i64, message : &str) -> PyResult<String>{
+fn handle_keyboard_responce(_py : Python, uid: i64, call_data : &str, msg_text : &str) -> PyResult<String>{
     unsafe{
-        Ok(ENG.as_mut().expect("initialize engine!").handle_keyboard_responce(uid, message))
+        Ok(ENG.as_mut().expect("initialize engine!").handle_keyboard_responce(uid, call_data, msg_text))
     }
 }
 
