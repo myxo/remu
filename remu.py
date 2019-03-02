@@ -19,25 +19,6 @@ import config
 base_error_message = 'There are some problem with request. Forward messages to @nikolay_klimov if you think this is a bug.'
 
 bot = telebot.TeleBot(config.tg_token, num_threads=4)
-fsm = {} # Finite State Machine
-
-class BotState(Enum):
-    WAIT                = 0
-    REP_DELETE_CHOOSE   = 1
-    AT_CALENDAR         = 2
-    AT_TIME             = 10
-    AT_TIME_TEXT        = 3
-    AFTER_INPUT         = 4
-
-
-class FSMData:
-    state = BotState.WAIT
-    data = {}
-
-    def reset(self):
-        self.state = BotState.WAIT
-        self.data = {}
-
 
 @bot.message_handler(content_types=["text"])
 def handle_text(message):
@@ -45,125 +26,17 @@ def handle_text(message):
     # import pdb; pdb.set_trace()
     id = message.chat.id
     msg_id = message.message_id
-    # if input_text.find('/at') == 0:
-        # on_at_command(message)
-        # return
 
     print('handle_text function')
     
     command = engine.handle_text_message(message.chat.id, input_text)
-    # FIXME: should not be error, but command
-    # if error == 0 and command == 'send_message':
-    #     bot.send_message(message.chat.id, text)
-    # else:
-    #     keyboard = keyboards.action()
-    #     bot.send_message(id, input_text, reply_markup=keyboard)
     handle_backend_command(id, msg_id, command)
     return
 
     # Special case
     if input_text.find('/start') == 0:
         on_start_command(message)
-        fsm[id] = FSMData()
         return
-
-    engine.log_debug("Processing input text message: %s. Bot state = %s"%(input_text, str(fsm[id].state)))
-
-    if fsm[id].state == BotState.WAIT:
-        # on_wait_status(message)
-        pass
-    
-    # elif fsm[id].state == BotState.REP_DELETE_CHOOSE:
-    #     on_rep_delete_choose_status(message)
-
-    elif fsm[id].state == BotState.AT_CALENDAR:
-        on_at_calendar_status(message)
-
-    elif fsm[id].state == BotState.AT_TIME_TEXT:
-        on_at_time_text_status(message)
-
-    elif fsm[id].state == BotState.AFTER_INPUT:
-        on_after_input_status(message)
-
-    elif fsm[id].state == BotState.AT_TIME:
-        on_at_time_status(message)
-    
-    else:
-        engine.log_error("Unknown bot state: uid = " + str(id) + " state = " + str(fsm[id].state))
-        fsm[id].reset()
-        handle_text(message)
-
-
-# def on_wait_status(message):
-#     input_text = message.text
-#     id = message.chat.id
-
-    # if input_text.find('/help') == 0:
-    #     on_help_command(message)
-    
-#     elif input_text.find('/delete_rep') == 0:
-#         on_delete_rep_command(message)
-
-
-    # elif input_text.find('/list') == 0:
-    #     on_list_command(message)
-
-    # else:
-    #     (text, error) = engine.handle_text_message(message.chat.id, input_text)
-    #     if error == 0:
-    #         bot.send_message(message.chat.id, text)
-    #     else:
-    #         keyboard = keyboards.action()
-    #         bot.send_message(id, input_text, reply_markup=keyboard)
-
-
-# def on_rep_delete_choose_status(message):
-#     delete_rep_event(message)
-
-
-# def on_at_calendar_status(message):
-#     id = message.chat.id
-#     message_id = fsm[id].data['message_id']
-#     bot.delete_message(chat_id=id, message_id=message_id)
-#     fsm[id].reset()
-#     handle_text(message)
-
-
-# def on_at_time_status(message):
-    # id = message.chat.id
-    # keyboard = keyboards.time()
-    # bot.send_message(id, )
-    # pass
-    
-
-# def on_at_time_text_status(message):
-#     print('on_at_time_text_status function')
-#     id = message.chat.id
-#     input_text = message.text
-#     if fsm[id].data['text']:
-#         input_text += ' ' + fsm[id].data['text']
-#     command = fsm[id].data['date_spec'] + ' at ' + input_text
-#     bot.send_message(id, 'Resulting command:\n' + command)
-#     (text, err) = engine.handle_text_message(id, command)
-#     if err:
-#         bot.send_message(id, 'Wrong resulting command. Try again')
-#     else:
-#         bot.send_message(id, text)
-#     fsm[id].reset()
-
-
-# def on_after_input_status(message):
-#     print('on_after_input_status function')
-#     id = message.chat.id
-#     command = message.text + ' ' + fsm[id].data['text']
-#     bot.send_message(id, 'Resulting command:\n' + command)
-#     (text, _) = engine.handle_text_message(id, command)
-#     bot.send_message(id, text)
-#     fsm[id].reset()
-
-
-# ------------------- command handlers
-
 
 def on_start_command(message):
     username = ''
@@ -181,83 +54,6 @@ def on_start_command(message):
     bot.send_message(message.chat.id, 'Hello! ^_^\nType /help')
 
 
-# --------------- Keyboard callback handlers 
-
-
-# @bot.callback_query_handler(func=lambda call: call.data[0:13] == 'calendar-day-')
-# def get_day(call):
-#     engine.log_debug("Processing button callback: %s"%(call.data))
-#     chat_id = call.message.chat.id
-#     saved_date = current_shown_dates.get(chat_id)
-#     # import pdb; pdb.set_trace()
-#     if(saved_date is None):
-#         engine.log_error("Called calendar get_day handler, but there no saved_date by " + str(chat_id) + " chat_id")
-#         return 
-
-#     day = call.data[13:]
-#     date = datetime.datetime(int(saved_date[0]), int(saved_date[1]), int(day), 0, 0, 0)
-#     fsm[chat_id].state = BotState.AT_TIME_TEXT
-#     fsm[chat_id].data['date_spec'] = day + '-' + str(saved_date[1]) + '-' + str(saved_date[0])
-#     # delete keyboard
-#     bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=call.message.text)
-#     if fsm[chat_id].data['text']:
-#         bot.send_message(chat_id, 'Ok, ' + date.strftime(r'%b %d') + '. Now write the time of event.')
-#     else:
-#         bot.send_message(chat_id, 'Ok, ' + date.strftime(r'%b %d') + '. Now write the time and text of event.')
-#     bot.answer_callback_query(call.id, text="")
-#     handle_hour_keyboard(chat_id)
-
-
-# @bot.callback_query_handler(func=lambda call: call.data == 'today' or call.data == 'tomorrow')
-# def on_calendar_today(call):
-#     engine.log_debug("Processing button callback: %s"%(call.data))
-#     chat_id = call.message.chat.id
-
-#     date = datetime.datetime.now()
-#     if call.data == 'tomorrow':
-#         date += datetime.timedelta(days=1)
-#     # date = datetime.datetime(int(saved_date[0]), int(saved_date[1]), int(day), 0, 0, 0)
-#     fsm[chat_id].state = BotState.AT_TIME_TEXT
-#     fsm[chat_id].data['date_spec'] = str(date.day) + '-' + str(date.month) + '-' + str(date.year)
-#     # delete keyboard
-#     bot.edit_message_text(chat_id=call.message.chat.id, message_id=call.message.message_id, text=call.message.text)
-#     if fsm[chat_id].data['text']:
-#         bot.send_message(chat_id, 'Ok, ' + date.strftime(r'%b %d') + '. Now write the time of event.')
-#     else:
-#         bot.send_message(chat_id, 'Ok, ' + date.strftime(r'%b %d') + '. Now write the time and text of event.')
-#     bot.answer_callback_query(call.id, text="")
-#     handle_hour_keyboard(chat_id)
-
-
-
-# @bot.callback_query_handler(func=lambda call: call.data[:10] == 'time_hour:')
-# def on_time_hour(call):
-#     engine.log_debug("Processing button callback: %s"%(call.data))
-#     chat_id = call.message.chat.id
-#     hour = int(call.data[10:])
-#     fsm[chat_id].data['hour'] = hour
-#     handle_minutes_keyboard(chat_id)
-
-# @bot.callback_query_handler(func=lambda call: call.data[:12] == 'time_minute:')
-# def on_time_minutes(call):
-#     print('on_time_minutes function')
-#     engine.log_debug("Processing button callback: %s"%(call.data))
-#     chat_id = call.message.chat.id
-#     minute = int(call.data[12:])
-#     message_id = fsm[chat_id].data['message_id']
-#     bot.delete_message(chat_id, message_id)
-
-#     hour = fsm[chat_id].data['hour'] 
-#     text = fsm[chat_id].data['text'] 
-#     date_spec = fsm[chat_id].data['date_spec'] 
-#     result_command = date_spec + ' at ' + str(hour) + '.' + str(minute) + ' ' + text
-#     (reply, err) = engine.handle_text_message(chat_id, result_command)
-#     if err:
-#         bot.send_message(chat_id, base_error_message)
-#     else:
-#         bot.send_message(chat_id, reply)
-#     fsm[chat_id].reset()
-
 
 @bot.callback_query_handler(func=lambda call: True)
 def callback_inline(call):
@@ -265,7 +61,7 @@ def callback_inline(call):
     msg_id = call.message.message_id
     # This is a mandatory call. Mean we get query and processing it
     bot.answer_callback_query(call.id, text="")
-    engine.log_debug("Processing keyboard callback. Call.data = %s. Bot state = %s"%(call.data, str(fsm[id].state)))
+    engine.log_debug("Processing keyboard callback. Call.data = %s."%(call.data))
     if call.message:
         if call.data == 'at' or call.data == 'next-month' or call.data == 'previous-month' or call.data == 'after' or call.data[0:13] == 'calendar-day-' or call.data[:10] == 'time_hour:' or call.data[:12] == 'time_minute:' or call.data == 'today' or call.data == 'tomorrow':
             command = engine.handle_keyboard_responce(id, call.data, call.message.text)
@@ -275,7 +71,8 @@ def callback_inline(call):
             bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id)
             return
         elif call.data == 'ignore':
-            fsm[id].reset() 
+            pass
+            # fsm[id].reset() 
         elif call.data != "Ok":
             call.message.text = call.data + " " + call.message.text
             handle_text(call.message)
@@ -290,7 +87,7 @@ def handle_backend_command(uid, msg_id, command_str):
     print(command_vec)
     for command in command_vec:
         if get_key(command) == 'send':
-            bot.send_message(uid, command['send']['text'])
+            bot.send_message(uid, command['send']['text'], parse_mode='Markdown')
         
         elif get_key(command) == 'calendar':
             handle_calendar_call(uid, msg_id, command['calendar'])
@@ -317,7 +114,7 @@ def handle_calendar_call(chat_id, msg_id, command):
     if command['edit_msg'] == True:
         bot.edit_message_text("Please, choose a date", chat_id, msg_id, reply_markup=markup)
     else: 
-        keyboard_message = bot.send_message(chat_id, "Please, choose a date", reply_markup=markup)
+        bot.send_message(chat_id, "Please, choose a date", reply_markup=markup)
 
 
 
@@ -408,8 +205,8 @@ if __name__ == '__main__':
     engine.initialize(verbose)
     engine.register_callback(on_engine_event)
     user_chat_id_list = engine.get_user_chat_id_all()
-    for chat_id in user_chat_id_list:
-        fsm[chat_id] = FSMData()
+    # for chat_id in user_chat_id_list:
+        # fsm[chat_id] = FSMData()
 
     engine.run()
 
@@ -419,8 +216,6 @@ if __name__ == '__main__':
             bot.polling()
         except:
             engine.log_error("I am down =(")
-            for key in fsm:
-                fsm[key].reset()
 
         if one_poll:
             break
