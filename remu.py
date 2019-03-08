@@ -23,9 +23,13 @@ bot = telebot.TeleBot(config.tg_token, num_threads=4)
 @bot.message_handler(content_types=["text"])
 def handle_text(message):
     input_text = message.text
-    # import pdb; pdb.set_trace()
     id = message.chat.id
     msg_id = message.message_id
+
+    # Special case
+    if input_text.find('/start') == 0:
+        on_start_command(message)
+        return
 
     print('handle_text function')
     
@@ -33,10 +37,6 @@ def handle_text(message):
     handle_backend_command(id, msg_id, command)
     return
 
-    # Special case
-    if input_text.find('/start') == 0:
-        on_start_command(message)
-        return
 
 def on_start_command(message):
     username = ''
@@ -63,20 +63,8 @@ def callback_inline(call):
     bot.answer_callback_query(call.id, text="")
     engine.log_debug("Processing keyboard callback. Call.data = %s."%(call.data))
     if call.message:
-        if call.data == 'at' or call.data == 'next-month' or call.data == 'previous-month' or call.data == 'after' or call.data[0:13] == 'calendar-day-' or call.data[:10] == 'time_hour:' or call.data[:12] == 'time_minute:' or call.data == 'today' or call.data == 'tomorrow':
-            command = engine.handle_keyboard_responce(id, call.data, call.message.text)
-            handle_backend_command(id, msg_id, command)
-            return
-        elif call.data == 'Ok':
-            bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id)
-            return
-        elif call.data == 'ignore':
-            pass
-            # fsm[id].reset() 
-        elif call.data != "Ok":
-            call.message.text = call.data + " " + call.message.text
-            handle_text(call.message)
-        bot.delete_message(chat_id=call.message.chat.id, message_id=call.message.message_id)
+        command = engine.handle_keyboard_responce(id, call.data, call.message.text)
+        handle_backend_command(id, msg_id, command)
 
 def get_key(d):
     return list(d.keys())[0]
@@ -91,6 +79,12 @@ def handle_backend_command(uid, msg_id, command_str):
         
         elif get_key(command) == 'calendar':
             handle_calendar_call(uid, msg_id, command['calendar'])
+
+        elif get_key(command) == 'delete_message':
+            bot.delete_message(chat_id=uid, message_id=msg_id)
+        
+        elif get_key(command) == 'delete_keyboard':
+            bot.edit_message_reply_markup(chat_id=uid, message_id=msg_id)
 
         elif get_key(command) == 'keyboard':
             if command['keyboard']['action_type'] == 'hour':

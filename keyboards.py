@@ -20,19 +20,19 @@ def calendar(year,month):
         markup.row(*row)
     #Last row - Buttons
     row=[]
-    row.append(types.InlineKeyboardButton("<",callback_data="previous-month"))
-    row.append(types.InlineKeyboardButton("today",callback_data="today"))
-    row.append(types.InlineKeyboardButton("tomorrow",callback_data="tomorrow"))
-    row.append(types.InlineKeyboardButton(">",callback_data="next-month"))
+    row.append(types.InlineKeyboardButton("<",          callback_data="previous-month"))
+    row.append(types.InlineKeyboardButton("today",      callback_data="today"))
+    row.append(types.InlineKeyboardButton("tomorrow",   callback_data="tomorrow"))
+    row.append(types.InlineKeyboardButton(">",          callback_data="next-month"))
     markup.row(*row)
     return markup
 
 
 def hour():
     markup = types.InlineKeyboardMarkup()
-    row1 = [ types.InlineKeyboardButton(str(x*3), callback_data="time_hour:" + str(x*3)) for x in range(8)]
-    row2 = [ types.InlineKeyboardButton(str(x*3 + 1), callback_data="time_hour:" + str(x*3 + 1)) for x in range(8)]
-    row3 = [ types.InlineKeyboardButton(str(x*3 + 2), callback_data="time_hour:" + str(x*3 + 2)) for x in range(8)]
+    row1 = [ types.InlineKeyboardButton(str(x*3),   callback_data="time_hour:" + str(x*3))   for x in range(8)]
+    row2 = [ types.InlineKeyboardButton(str(x*3+1), callback_data="time_hour:" + str(x*3+1)) for x in range(8)]
+    row3 = [ types.InlineKeyboardButton(str(x*3+2), callback_data="time_hour:" + str(x*3+2)) for x in range(8)]
     markup.row(*row1)
     markup.row(*row2)
     markup.row(*row3)

@@ -19,7 +19,7 @@ pub struct Engine {
 
 pub struct ProcessResult {
     pub frontend_command: Vec<FrontendCommand>,
-    pub next_state: Box<UserState>,
+    pub next_state: Option<Box<UserState>>,
 }
 
 impl Engine {
@@ -41,13 +41,13 @@ impl Engine {
 
     // Normally should be run in another thread
     pub fn run(&mut self) {
-        self.stop_loop.store(false, Ordering::AcqRel);
+        self.stop_loop.store(false, Ordering::Relaxed);
         self.loop_thread();
     }
 
     fn loop_thread(&mut self) {
         info!("Start engine loop");
-        while !self.stop_loop.load(Ordering::AcqRel) {
+        while !self.stop_loop.load(Ordering::Relaxed) {
             self.tick();
             thread::sleep(time::Duration::from_millis(500));
         }
@@ -58,7 +58,10 @@ impl Engine {
 
         let state = self.user_states.get(&(uid as i32)).unwrap();
         let result = state.process(uid, text_message, &mut self.data_base);
-        self.user_states.insert(uid as i32, result.next_state);
+        if result.next_state.is_some() {
+            self.user_states
+                .insert(uid as i32, result.next_state.unwrap());
+        }
         self.next_wakeup = self.data_base.get_nearest_wakeup();
 
         serde_json::to_string(&result.frontend_command).unwrap_or("".to_owned())
@@ -72,8 +75,15 @@ impl Engine {
     ) -> String {
         info!("Handle Keyboard data : {}, text: {}", call_data, msg_text);
         let state = self.user_states.get(&(uid as i32)).unwrap();
-        let result = state.process_keyboard(uid, call_data, msg_text, &mut self.data_base);
-        self.user_states.insert(uid as i32, result.next_state);
+
+        let result = match common_process_keyboard(uid, call_data, msg_text, &mut self.data_base) {
+            Some(res) => res,
+            None => state.process_keyboard(uid, call_data, msg_text, &mut self.data_base),
+        };
+        if result.next_state.is_some() {
+            self.user_states
+                .insert(uid as i32, result.next_state.unwrap());
+        }
         self.next_wakeup = self.data_base.get_nearest_wakeup();
         serde_json::to_string(&result.frontend_command).unwrap_or("".to_owned())
     }
@@ -84,7 +94,7 @@ impl Engine {
 
     pub fn stop(&mut self) {
         info!("Stoping engine");
-        self.stop_loop.store(false, Ordering::AcqRel);
+        self.stop_loop.store(false, Ordering::Relaxed);
     }
 
     pub fn add_user(
@@ -97,20 +107,24 @@ impl Engine {
         tz: i32,
     ) -> bool {
         info!("Add new user id - {}, username - {}", uid, username);
-        self.data_base
-            .add_user(uid, username, chat_id, first_name, last_name, tz)
+        let result = self.data_base
+            .add_user(uid, username, chat_id, first_name, last_name, tz);
+        if result {
+            self.user_states.insert(uid as i32, Box::new(ReadyToProcess {}));
+        }
+        result
     }
 
     pub fn get_user_chat_id_all(&self) -> Vec<i32> {
         self.data_base.get_user_chat_id_all()
     }
 
-    fn on_one_time_event(&self, event: OneTimeEventImpl, uid: i64) {
+    fn on_one_time_event(&mut self, event: OneTimeEventImpl, uid: i64) {
         info!("Event time, text - <{}>", &event.event_text);
         (self.frontend_callback.unwrap())(event.event_text, uid);
     }
 
-    fn on_repetitive_event(&self, event: RepetitiveEventImpl, uid: i64) {
+    fn on_repetitive_event(&mut self, event: RepetitiveEventImpl, uid: i64) {
         info!("Event time, text - <{}>", &event.event_text);
         (self.frontend_callback.unwrap())(event.event_text, uid);
     }

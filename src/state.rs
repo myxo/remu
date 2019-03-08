@@ -33,6 +33,8 @@ pub enum FrontendCommand {
     send(SendMessageCommand),
     calendar(AtCalendarCommand),
     keyboard(KeyboardCommand),
+    delete_message {},
+    delete_keyboard {},
 }
 
 pub trait UserState {
@@ -118,10 +120,10 @@ impl ReadyToProcess {
 
         ProcessResult {
             frontend_command: vec![FrontendCommand::calendar(command.clone())],
-            next_state: Box::new(AtCalendar {
+            next_state: Some(Box::new(AtCalendar {
                 command,
                 ev_text: msg_text,
-            }),
+            })),
         }
     }
 }
@@ -129,82 +131,98 @@ impl ReadyToProcess {
 impl UserState for ReadyToProcess {
     fn process(&self, id: i64, input: &str, db: &mut DataBase) -> ProcessResult {
         info!("ReadyToProcess::process, input: {}", input);
-        if input.starts_with("/help more") {
-            // TODO: should be exact matching
-            let command = SendMessageCommand {
-                text: "Detailed help message".to_owned(),
-            };
-            return ProcessResult {
-                frontend_command: vec![FrontendCommand::send(command)],
-                next_state: Box::new(ReadyToProcess {}),
-            };
-        }
-        if input.starts_with("/help") {
-            // TODO: should be exact matching
-            let command = SendMessageCommand {
-                text: "Simple help message".to_owned(),
-            };
-            return ProcessResult {
-                frontend_command: vec![FrontendCommand::send(command)],
-                next_state: Box::new(ReadyToProcess {}),
-            };
-        }
-        if input.starts_with("/list") {
-            let list = get_active_event_list(id, db);
-            let ret_text = if list.is_empty() {
-                "No current active event".to_owned()
-            } else {
-                list.iter().enumerate().fold(
-                    String::from(""), 
-                    |s, (i, val)|{
-                        s + &format!("{}) {}\n", i + 1, val)
-                    })
-            };
-            let command = SendMessageCommand { text: ret_text };
-            return ProcessResult {
-                frontend_command: vec![FrontendCommand::send(command)],
-                next_state: Box::new(ReadyToProcess {}),
-            };
-        }
-        if input.starts_with("/at") {
-            return self.start_calendar(id, input, None {}, db);
-        }
-        if input.starts_with("/delete_rep") {
-            let (list_str, list_id) = get_rep_event_list(id, db);
-            if list_str.is_empty() {
-                let command = SendMessageCommand {
-                    text: "No current rep event".to_owned(),
-                };
+        if !input.starts_with("/") {
+            let (ret_text, er) = process_text_command(id, input, db);
+            if er == 0 {
+                let command = SendMessageCommand { text: ret_text };
                 return ProcessResult {
                     frontend_command: vec![FrontendCommand::send(command)],
-                    next_state: Box::new(ReadyToProcess {}),
+                    next_state: Some(Box::new(ReadyToProcess {})),
+                };
+            } else {
+                let command = KeyboardCommand {
+                    action_type: "main".to_owned(),
+                    text: input.to_string(),
+                };
+                return ProcessResult {
+                    frontend_command: vec![FrontendCommand::keyboard(command)],
+                    next_state: Some(Box::new(ReadyToProcess {})),
                 };
             }
-            let ret_str = "Here is yout rep events list. Choose witch to delete:\n".to_string()
-                + &list_str.join("\n");
-            let command = SendMessageCommand { text: ret_str };
-            return ProcessResult {
-                frontend_command: vec![FrontendCommand::send(command)],
-                next_state: Box::new(RepDeleteChoose { list_id }),
-            };
         }
-        let (ret_text, er) = process_text_command(id, input, db);
-        if er == 0 {
-            let command = SendMessageCommand { text: ret_text };
-            ProcessResult {
-                frontend_command: vec![FrontendCommand::send(command)],
-                next_state: Box::new(ReadyToProcess {}),
+        match input {
+            "/help more" => {
+                let command = SendMessageCommand {
+                    text: "Detailed help message".to_owned(),
+                };
+                ProcessResult {
+                    frontend_command: vec![FrontendCommand::send(command)],
+                    next_state: Some(Box::new(ReadyToProcess {})),
+                }
             }
-        } else {
-            let command = KeyboardCommand {
-                action_type: "main".to_owned(),
-                text: input.to_string(),
-            };
-            ProcessResult {
-                frontend_command: vec![FrontendCommand::keyboard(command)],
-                next_state: Box::new(ReadyToProcess {}),
+
+            "/help" => {
+                let command = SendMessageCommand {
+                    text: "Simple help message".to_owned(),
+                };
+                ProcessResult {
+                    frontend_command: vec![FrontendCommand::send(command)],
+                    next_state: Some(Box::new(ReadyToProcess {})),
+                }
             }
-        }
+
+            "/list" => {
+                let list = get_active_event_list(id, db);
+                let ret_text = if list.is_empty() {
+                    "No current active event".to_owned()
+                } else {
+                    list.iter()
+                        .enumerate()
+                        .fold(String::from(""), |s, (i, val)| {
+                            s + &format!("{}) {}\n", i + 1, val)
+                        })
+                };
+                let command = SendMessageCommand { text: ret_text };
+                ProcessResult {
+                    frontend_command: vec![FrontendCommand::send(command)],
+                    next_state: Some(Box::new(ReadyToProcess {})),
+                }
+            }
+
+            "/at" => {
+                return self.start_calendar(id, input, None {}, db);
+            }
+
+            "/delete_rep" => {
+                let (list_str, list_id) = get_rep_event_list(id, db);
+                if list_str.is_empty() {
+                    let command = SendMessageCommand {
+                        text: "No current rep event".to_owned(),
+                    };
+                    return ProcessResult {
+                        frontend_command: vec![FrontendCommand::send(command)],
+                        next_state: Some(Box::new(ReadyToProcess {})),
+                    };
+                }
+                let ret_str = "Here is yout rep events list. Choose witch to delete:\n".to_string()
+                    + &list_str.join("\n");
+                let command = SendMessageCommand { text: ret_str };
+                ProcessResult {
+                    frontend_command: vec![FrontendCommand::send(command)],
+                    next_state: Some(Box::new(RepDeleteChoose { list_id })),
+                }
+            }
+
+            _ => {
+                let command = SendMessageCommand {
+                    text: format!("Unknown command: {}", input),
+                };
+                ProcessResult {
+                    frontend_command: vec![FrontendCommand::send(command)],
+                    next_state: Some(Box::new(ReadyToProcess {})),
+                }
+            }
+        } // match input.as_ref()
     }
 
     fn process_keyboard(
@@ -224,9 +242,9 @@ impl UserState for ReadyToProcess {
 
             return ProcessResult {
                 frontend_command: vec![FrontendCommand::send(command)],
-                next_state: Box::new(AfterInput {
+                next_state: Some(Box::new(AfterInput {
                     ev_text: msg_text.to_owned(),
-                }),
+                })),
             };
         }
 
@@ -235,7 +253,7 @@ impl UserState for ReadyToProcess {
         };
         ProcessResult {
             frontend_command: vec![FrontendCommand::send(command)],
-            next_state: Box::new(ReadyToProcess {}),
+            next_state: Some(Box::new(ReadyToProcess {})),
         }
     }
 }
@@ -255,6 +273,7 @@ impl UserState for AtCalendar {
         if callback_data == "next-month" || callback_data == "previous-month" {
             let mut month = self.command.month;
             let mut year = self.command.year;
+            // FIXME: make normal time arithmetic
             if callback_data == "next-month" {
                 month += 1;
                 if month > 12 {
@@ -277,10 +296,10 @@ impl UserState for AtCalendar {
             // FIXME: check to_string result
             return ProcessResult {
                 frontend_command: vec![FrontendCommand::calendar(new_command.clone())],
-                next_state: Box::new(AtCalendar {
+                next_state: Some(Box::new(AtCalendar {
                     command: new_command,
                     ev_text: self.ev_text.as_ref().cloned(),
-                }),
+                })),
             };
         } else if callback_data.starts_with("calendar-day-") {
             // TODO: bot.send_message(chat_id, 'Ok, ' + date.strftime(r'%b %d') + '. Now write the time of event.')
@@ -291,12 +310,12 @@ impl UserState for AtCalendar {
             };
             return ProcessResult {
                 frontend_command: vec![FrontendCommand::keyboard(command)],
-                next_state: Box::new(AtTimeHour {
+                next_state: Some(Box::new(AtTimeHour {
                     year: self.command.year,
                     month: self.command.month,
                     day,
                     ev_text: self.ev_text.as_ref().cloned(),
-                }),
+                })),
             };
         } else if callback_data == "today" || callback_data == "tomorrow" {
             // TODO: bot.send_message(chat_id, 'Ok, ' + date.strftime(r'%b %d') + '. Now write the time of event.')
@@ -311,12 +330,17 @@ impl UserState for AtCalendar {
             };
             return ProcessResult {
                 frontend_command: vec![FrontendCommand::keyboard(command)],
-                next_state: Box::new(AtTimeHour {
+                next_state: Some(Box::new(AtTimeHour {
                     year: now.year(),
                     month: now.month() as i32,
                     day: now.day() as i32,
                     ev_text: self.ev_text.as_ref().cloned(),
-                }),
+                })),
+            };
+        } else if callback_data == "ignore" {
+            return ProcessResult {
+                frontend_command: vec![FrontendCommand::delete_message {}],
+                next_state: Some(Box::new(ReadyToProcess {})),
             };
         }
         let command = SendMessageCommand {
@@ -324,7 +348,7 @@ impl UserState for AtCalendar {
         };
         ProcessResult {
             frontend_command: vec![FrontendCommand::send(command)],
-            next_state: Box::new(ReadyToProcess {}),
+            next_state: Some(Box::new(ReadyToProcess {})),
         }
     }
 }
@@ -350,13 +374,13 @@ impl UserState for AtTimeHour {
 
             return ProcessResult {
                 frontend_command: vec![FrontendCommand::keyboard(command)],
-                next_state: Box::new(AtTimeMinute {
+                next_state: Some(Box::new(AtTimeMinute {
                     year: self.year,
                     month: self.month,
                     day: self.day,
                     hour,
                     ev_text: self.ev_text.as_ref().cloned(),
-                }),
+                })),
             };
         }
         let command = SendMessageCommand {
@@ -364,11 +388,10 @@ impl UserState for AtTimeHour {
         };
         ProcessResult {
             frontend_command: vec![FrontendCommand::send(command)],
-            next_state: Box::new(ReadyToProcess {}),
+            next_state: Some(Box::new(ReadyToProcess {})),
         }
     }
 }
-
 
 impl UserState for AtTimeMinute {
     fn process(&self, _id: i64, _input: &str, _db: &mut DataBase) -> ProcessResult {
@@ -401,7 +424,7 @@ impl UserState for AtTimeMinute {
             let command = SendMessageCommand { text: ret_text };
             return ProcessResult {
                 frontend_command: vec![FrontendCommand::send(command)],
-                next_state: Box::new(ReadyToProcess {}),
+                next_state: Some(Box::new(ReadyToProcess {})),
             };
 
             // let command = KeyboardCommand {
@@ -424,11 +447,10 @@ impl UserState for AtTimeMinute {
         };
         ProcessResult {
             frontend_command: vec![FrontendCommand::send(command)],
-            next_state: Box::new(ReadyToProcess {}),
+            next_state: Some(Box::new(ReadyToProcess {})),
         }
     }
 }
-
 
 impl UserState for AtTimeText {
     fn process(&self, _id: i64, _input: &str, _db: &mut DataBase) -> ProcessResult {
@@ -438,14 +460,17 @@ impl UserState for AtTimeText {
     fn process_keyboard(
         &self,
         _id: i64,
-        _input: &str,
+        _callback_data: &str,
         _msg_text: &str,
         _db: &mut DataBase,
     ) -> ProcessResult {
-        panic!("Default UserState::process")
+        // This mean user just push some old button. Ignore.
+        ProcessResult {
+            frontend_command: vec![],
+            next_state: None,
+        }
     }
 }
-
 
 impl UserState for AfterInput {
     fn process(&self, id: i64, input: &str, db: &mut DataBase) -> ProcessResult {
@@ -457,7 +482,7 @@ impl UserState for AfterInput {
         };
         ProcessResult {
             frontend_command: vec![FrontendCommand::send(command)],
-            next_state: Box::new(ReadyToProcess {}),
+            next_state: Some(Box::new(ReadyToProcess {})),
         }
     }
 
@@ -471,7 +496,6 @@ impl UserState for AfterInput {
         panic!("Default UserState::process")
     }
 }
-
 
 impl UserState for RepDeleteChoose {
     fn process(&self, _id: i64, input: &str, db: &mut DataBase) -> ProcessResult {
@@ -487,7 +511,7 @@ impl UserState for RepDeleteChoose {
                 };
                 return ProcessResult {
                     frontend_command: vec![FrontendCommand::send(command)],
-                    next_state: Box::new(ReadyToProcess {}),
+                    next_state: Some(Box::new(ReadyToProcess {})),
                 };
             }
         }
@@ -497,7 +521,7 @@ impl UserState for RepDeleteChoose {
             };
             return ProcessResult {
                 frontend_command: vec![FrontendCommand::send(command)],
-                next_state: Box::new(ReadyToProcess {}),
+                next_state: Some(Box::new(ReadyToProcess {})),
             };
         }
         db.delete_rep_event(ev_to_del as i64);
@@ -506,7 +530,7 @@ impl UserState for RepDeleteChoose {
         };
         ProcessResult {
             frontend_command: vec![FrontendCommand::send(command)],
-            next_state: Box::new(ReadyToProcess {}),
+            next_state: Some(Box::new(ReadyToProcess {})),
         }
     }
     fn process_keyboard(
@@ -522,7 +546,33 @@ impl UserState for RepDeleteChoose {
         };
         return ProcessResult {
             frontend_command: vec![FrontendCommand::send(command)],
-            next_state: Box::new(ReadyToProcess {}),
+            next_state: Some(Box::new(ReadyToProcess {})),
         };
+    }
+}
+
+// Some keyboard command should be processed regardless current state
+// This fucntion handle this kind of commands
+pub fn common_process_keyboard(
+    _id: i64,
+    callback_data: &str,
+    _msg_text: &str,
+    _db: &mut DataBase,
+) -> Option<ProcessResult> {
+
+    // TODO: may come normal command here (from main keyboard)
+
+    if callback_data == "ignore" {
+        Some(ProcessResult {
+            frontend_command: vec![FrontendCommand::delete_message {}],
+            next_state: None,
+        })
+    } else if callback_data == "Ok" {
+        Some(ProcessResult {
+            frontend_command: vec![FrontendCommand::delete_keyboard {}],
+            next_state: None,
+        })
+    } else {
+        None
     }
 }
