@@ -1,11 +1,7 @@
-extern crate chrono;
-extern crate regex;
 #[macro_use]
 extern crate cpython;
 #[macro_use]
 extern crate log;
-extern crate fern;
-extern crate rusqlite;
 
 mod command;
 pub mod engine;
@@ -14,30 +10,26 @@ mod sql_query;
 mod state;
 mod helpers;
 
-use engine::Engine;
+use engine::{CmdToEngine, engine_run};
 
 use cpython::{Python, PyResult, PyObject, ObjectProtocol, PyTuple, ToPyObject, PythonObject};
-use std::thread;
+use std::sync::mpsc;
 use std::io;
+use std::thread;
 
-static mut ENG : Option<Engine> = None;
 static mut CALLBACK : Option<PyObject> = None;
+static mut TX_TO_ENGINE : Option<mpsc::Sender<CmdToEngine>> = None;
 
 py_module_initializer!(libremu_backend, 
     initlibremu_backend, 
     PyInit_libremu_backend, 
     |py, m| 
     {
-        m.add(py, "initialize", py_fn!(py, initialize(verbose: bool)))?;
-        m.add(py, "run", py_fn!(py, run()))?;
+        m.add(py, "initialize", py_fn!(py, initialize(verbose: bool, callback: PyObject)))?;
         m.add(py, "stop", py_fn!(py, stop()))?;
         m.add(py, "add_user", py_fn!(py, add_user(uid: i64, username: &str, chat_id: i64, first_name: &str, last_name: &str, tz: i32)))?;
-        m.add(py, "handle_text_message", py_fn!(py, handle_text_message(uid: i64, message: &str)))?;
-        m.add(py, "handle_keyboard_responce", py_fn!(py, handle_keyboard_responce(uid: i64, call_data: &str, msg_text: &str)))?;
-
-        m.add(py, "get_user_chat_id_all", py_fn!(py, get_user_chat_id_all()))?;
-        
-        m.add(py, "register_callback", py_fn!(py, register_callback(obj: PyObject)))?;
+        m.add(py, "handle_text_message", py_fn!(py, handle_text_message(uid: i64, msg_id: i64, message: &str)))?;
+        m.add(py, "handle_keyboard_responce", py_fn!(py, handle_keyboard_responce(uid: i64, msg_id: i64, call_data: &str, msg_text: &str)))?;
 
         m.add(py, "log_debug", py_fn!(py, log_debug(s: &str)))?;
         m.add(py, "log_info", py_fn!(py, log_info(s: &str)))?;
@@ -46,21 +38,30 @@ py_module_initializer!(libremu_backend,
         Ok(())
     });
 
-fn initialize(_py : Python, verbose: bool) -> PyResult<bool>{
+fn initialize(_py : Python, verbose: bool, callback: PyObject) -> PyResult<bool>{
     setup_logging(3, verbose).unwrap_or_else(
         |err| { 
-            error!("Logging init failed, reasone: {}", err); 
-        });
-    unsafe {
-        ENG = Some(Engine::new(false));
+            panic!("Logging init failed, reasone: {}", err); 
+        }
+    );
+    if !callback.is_callable(_py) {
+        return Ok(false);
     }
-    Ok(true)
-}
 
-fn run(_py : Python) -> PyResult<bool>{
-    thread::spawn( ||{
-        unsafe{
-            ENG.as_mut().expect("initialize engine!").run();
+    unsafe{
+        CALLBACK = Some(callback);
+    }
+
+    let (tx_to_engine, rx_out_engine) = engine_run(engine::Mode::Filesystem);
+    unsafe {
+        TX_TO_ENGINE = Some(tx_to_engine);
+    }
+
+    thread::spawn(move || {
+        for cmd in rx_out_engine {
+            let cmd_str = serde_json::to_string(&cmd).unwrap();
+            println!("{}", &cmd_str);
+            engine_callback(cmd_str);
         }
     });
     Ok(true)
@@ -68,55 +69,53 @@ fn run(_py : Python) -> PyResult<bool>{
 
 fn stop(_py : Python) -> PyResult<bool>{
     unsafe {
-        ENG.as_mut().expect("initialize engine!").stop();
+        TX_TO_ENGINE.as_mut().unwrap().send(CmdToEngine::Terminate).unwrap();
     }
     Ok(true)
 }
 
 fn add_user(_py : Python, uid: i64, username: &str, chat_id: i64, first_name: &str, last_name: &str, tz: i32) -> PyResult<bool>{
     unsafe {
-        Ok(ENG.as_mut().expect("initialize engine!").add_user(uid, username, chat_id, first_name, last_name, tz))
+        TX_TO_ENGINE.as_mut().unwrap().send(CmdToEngine::AddUser {
+            uid, 
+            username: username.to_string(), 
+            chat_id,
+            first_name: first_name.to_string(),
+            last_name: last_name.to_string(),
+            tz,
+        }).unwrap();
     }
+    Ok(true)
 }
 
-fn handle_text_message(_py : Python, uid: i64, message : &str) -> PyResult<String>{
+fn handle_text_message(_py : Python, uid: i64, msg_id: i64, message : &str) -> PyResult<bool>{
     unsafe{
-        Ok(ENG.as_mut().expect("initialize engine!").handle_text_message(uid, message))
+        TX_TO_ENGINE.as_mut().unwrap().send(CmdToEngine::TextMessage {uid, msg_id, message: message.to_string()}).unwrap();
     }
+    Ok(true)
 }
 
-fn handle_keyboard_responce(_py : Python, uid: i64, call_data : &str, msg_text : &str) -> PyResult<String>{
+fn handle_keyboard_responce(_py : Python, uid: i64, msg_id: i64, call_data : &str, msg_text : &str) -> PyResult<bool>{
     unsafe{
-        Ok(ENG.as_mut().expect("initialize engine!").handle_keyboard_responce(uid, call_data, msg_text))
+        TX_TO_ENGINE.as_mut().unwrap().send(CmdToEngine::KeyboardMessage {
+            uid, 
+            msg_id,
+            call_data: call_data.to_string(), 
+            msg_text: msg_text.to_string()
+        }).unwrap();
     }
+    Ok(true)
 }
 
-pub fn get_user_chat_id_all(_py: Python) -> PyResult<Vec<i32>> {
-    unsafe{
-        Ok(ENG.as_mut().expect("initialize engine!").get_user_chat_id_all())
-    }
-}
-
-fn engine_callback(text: String, uid: i64){
+fn engine_callback(text: String){
     unsafe{
         if CALLBACK.is_some() {
             let gil = Python::acquire_gil();
             let py = gil.python();
-            let py_turple = PyTuple::new(py, &[text.to_py_object(py).into_object(), uid.to_py_object(py).into_object(),]);
+            let py_turple = PyTuple::new(py, &[text.to_py_object(py).into_object(),]);
             let _res = CALLBACK.as_mut().unwrap().call(py, py_turple, None);
         }
     }
-}
-
-fn register_callback(_py : Python, obj : PyObject) -> PyResult<bool>{
-    if obj.is_callable(_py) {
-        unsafe{
-            CALLBACK = Some(obj);
-            ENG.as_mut().expect("initialize engine!").register_callback(engine_callback);
-        }
-        return Ok(true);
-    }
-    Ok(false)
 }
 
 fn log_debug(_py : Python, s: &str) -> PyResult<bool> {

@@ -2,17 +2,37 @@ use chrono;
 use chrono::prelude::*;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc;
 use std::thread;
 use std::time;
+use serde::{Deserialize, Serialize};
 
 use crate::command::*;
 use crate::database::DataBase;
 use crate::state::*;
 
-pub struct Engine {
+pub enum Mode {
+    InMemory,
+    Filesystem,
+}
+
+pub enum CmdToEngine {
+    AddUser {uid: i64, username: String, chat_id: i64, first_name: String, last_name: String, tz: i32},
+    TextMessage {uid: i64, msg_id: i64, message: String},
+    KeyboardMessage {uid: i64, msg_id: i64, call_data: String, msg_text: String},
+    Terminate,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct CmdFromEngine {
+    uid: i64,
+    to_msg: Option<i64>,
+    cmd_vec: Vec<FrontendCommand>,
+}
+
+struct Engine {
     next_wakeup: Option<DateTime<Utc>>,
     data_base: DataBase,
-    frontend_callback: Option<(fn(String, i64))>,
     stop_loop: AtomicBool,
     user_states: HashMap<i32, Box<UserState>>,
 }
@@ -22,14 +42,59 @@ pub struct ProcessResult {
     pub next_state: Option<Box<UserState>>,
 }
 
+pub fn engine_run(mode: Mode) -> (mpsc::Sender<CmdToEngine>, mpsc::Receiver<CmdFromEngine>) 
+{
+    let (tx_to_engine, rx_in_engine) = mpsc::channel();
+    let (tx_from_engine, rx_out_engine) = mpsc::channel();
+    thread::spawn(move || {
+        let mut engine = Engine::new(mode);
+
+        while !engine.stop_loop.load(Ordering::Relaxed) {
+            if let Some(cmd) = engine.tick() {
+                tx_from_engine.send(cmd).unwrap();
+            }
+
+            if let Ok(message) = rx_in_engine.try_recv(){
+                match message {
+                    CmdToEngine::AddUser {uid, username, chat_id, first_name, last_name, tz} => { 
+                        engine.add_user(uid, &username, chat_id, &first_name, &last_name, tz);
+                    },
+
+                    CmdToEngine::TextMessage {uid, msg_id, message} => { 
+                        let res = engine.handle_text_message(uid, &message);
+                        tx_from_engine.send(CmdFromEngine{uid, to_msg: Some(msg_id), cmd_vec: res}).unwrap();
+                    },
+
+                    CmdToEngine::KeyboardMessage {uid, msg_id, call_data, msg_text} => {
+                        let res = engine.handle_keyboard_responce(uid, &call_data, &msg_text);
+                        tx_from_engine.send(CmdFromEngine{uid, to_msg: Some(msg_id), cmd_vec: res}).unwrap();
+                    }
+
+                    CmdToEngine::Terminate => {
+                        engine.stop();
+                        break;
+                    }
+                };
+            }
+
+            thread::sleep(time::Duration::from_millis(500));
+        }
+    });
+
+    (tx_to_engine, rx_out_engine)
+}
+
 impl Engine {
-    pub fn new(open_in_memory: bool) -> Engine {
+    pub fn new(mode: Mode) -> Engine {
         info!("Initialize engine");
+        let db_in_memory = match mode {
+            Mode::InMemory => true,
+            _ => false,
+        };
         let mut engine = Engine {
             stop_loop: AtomicBool::new(false),
             next_wakeup: None,
-            frontend_callback: None,
-            data_base: DataBase::new(open_in_memory),
+            data_base: DataBase::new(db_in_memory),
             user_states: HashMap::new(),
         };
 
@@ -39,24 +104,10 @@ impl Engine {
         engine
     }
 
-    // Normally should be run in another thread
-    pub fn run(&mut self) {
-        self.stop_loop.store(false, Ordering::Relaxed);
-        self.loop_thread();
-    }
-
-    fn loop_thread(&mut self) {
-        info!("Start engine loop");
-        while !self.stop_loop.load(Ordering::Relaxed) {
-            self.tick();
-            thread::sleep(time::Duration::from_millis(500));
-        }
-    }
-
-    pub fn handle_text_message(&mut self, uid: i64, text_message: &str) -> String {
+    pub fn handle_text_message(&mut self, uid: i64, text_message: &str) -> Vec<FrontendCommand> {
         info!("Handle text message : {}", text_message);
 
-        let state = self.user_states.get(&(uid as i32)).unwrap();
+        let state = self.user_states.get(&(uid as i32)).expect("No user state!");
         let result = state.process(uid, text_message, &mut self.data_base);
         if result.next_state.is_some() {
             self.user_states
@@ -64,7 +115,7 @@ impl Engine {
         }
         self.next_wakeup = self.data_base.get_nearest_wakeup();
 
-        serde_json::to_string(&result.frontend_command).unwrap_or("".to_owned())
+        result.frontend_command
     }
 
     pub fn handle_keyboard_responce(
@@ -72,7 +123,7 @@ impl Engine {
         uid: i64,
         call_data: &str,
         msg_text: &str,
-    ) -> String {
+    ) -> Vec<FrontendCommand> {
         info!("Handle Keyboard data : {}, text: {}", call_data, msg_text);
         let state = self.user_states.get(&(uid as i32)).unwrap();
 
@@ -85,14 +136,10 @@ impl Engine {
                 .insert(uid as i32, result.next_state.unwrap());
         }
         self.next_wakeup = self.data_base.get_nearest_wakeup();
-        serde_json::to_string(&result.frontend_command).unwrap_or("".to_owned())
+        result.frontend_command
     }
 
-    pub fn register_callback(&mut self, f: fn(String, i64)) {
-        self.frontend_callback = Some(f);
-    }
-
-    pub fn stop(&mut self) {
+    fn stop(&mut self) {
         info!("Stoping engine");
         self.stop_loop.store(false, Ordering::Relaxed);
     }
@@ -105,46 +152,47 @@ impl Engine {
         first_name: &str,
         last_name: &str,
         tz: i32,
-    ) -> bool {
+    ){
         info!("Add new user id - {}, username - {}", uid, username);
-        let result = self.data_base
-            .add_user(uid, username, chat_id, first_name, last_name, tz);
-        if result {
+        if self.data_base.add_user(uid, username, chat_id, first_name, last_name, tz) {
             self.user_states.insert(uid as i32, Box::new(ReadyToProcess {}));
         }
-        result
     }
 
     pub fn get_user_chat_id_all(&self) -> Vec<i32> {
         self.data_base.get_user_chat_id_all()
     }
 
-    fn on_one_time_event(&mut self, event: OneTimeEventImpl, uid: i64) {
-        info!("Event time, text - <{}>", &event.event_text);
-        (self.frontend_callback.unwrap())(event.event_text, uid);
-    }
-
-    fn on_repetitive_event(&mut self, event: RepetitiveEventImpl, uid: i64) {
-        info!("Event time, text - <{}>", &event.event_text);
-        (self.frontend_callback.unwrap())(event.event_text, uid);
-    }
-
-    fn tick(&mut self) {
+    fn tick(&mut self) -> Option<CmdFromEngine> {
         if self.next_wakeup.is_none() {
             self.next_wakeup = self.data_base.get_nearest_wakeup();
-            return;
+            return None;
         }
         let next_wakeup = self.next_wakeup.unwrap();
 
         if Utc::now() > next_wakeup {
-            if let Some((command, uid)) = self.data_base.pop(next_wakeup) {
-                match command {
-                    Command::OneTimeEvent(ev) => self.on_one_time_event(ev, uid),
-                    Command::RepetitiveEvent(ev) => self.on_repetitive_event(ev, uid),
-                    Command::BadCommand => error!("Database::pop return BadCommand"),
-                }
-            }
             self.next_wakeup = self.data_base.get_nearest_wakeup();
-        }
+            if let Some((command, uid)) = self.data_base.pop(next_wakeup) {
+                let event_text = match command {
+                    Command::OneTimeEvent(ev) => ev.event_text,
+                    Command::RepetitiveEvent(ev) => ev.event_text,
+                    Command::BadCommand => {
+                        error!("Database::pop return BadCommand");
+                        return None;
+                    }
+                };
+                info!("Event time, text - <{}>", &event_text);
+                let cmd = FrontendCommand::keyboard(KeyboardCommand{
+                    action_type: "main".to_owned(),
+                    text: event_text,
+                });
+                return Some(CmdFromEngine{
+                    uid,
+                    to_msg: None,
+                    cmd_vec: vec![cmd],
+                });
+            };
+        };
+        None
     }
 }

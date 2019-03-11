@@ -23,8 +23,8 @@ pub struct AtCalendarCommand {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct KeyboardCommand {
-    action_type: String,
-    text: String,
+    pub action_type: String,
+    pub text: String,
 }
 
 #[allow(non_camel_case_types)]

@@ -33,8 +33,8 @@ def handle_text(message):
 
     print('handle_text function')
     
-    command = engine.handle_text_message(message.chat.id, input_text)
-    handle_backend_command(id, msg_id, command)
+    command = engine.handle_text_message(message.chat.id, msg_id, input_text)
+    # handle_backend_command(id, msg_id, command)
     return
 
 
@@ -63,15 +63,19 @@ def callback_inline(call):
     bot.answer_callback_query(call.id, text="")
     engine.log_debug("Processing keyboard callback. Call.data = %s."%(call.data))
     if call.message:
-        command = engine.handle_keyboard_responce(id, call.data, call.message.text)
-        handle_backend_command(id, msg_id, command)
+        command = engine.handle_keyboard_responce(id, msg_id, call.data, call.message.text)
+        # handle_backend_command(id, msg_id, command)
 
 def get_key(d):
     return list(d.keys())[0]
 
-def handle_backend_command(uid, msg_id, command_str):
-    print('id: %d, msg: %d, try to handle backend command: %s' % (uid, msg_id, command_str))
-    command_vec = json.loads(command_str)
+def handle_backend_command(command_str):
+    command = json.loads(command_str)
+    uid = command['uid']
+    msg_id = command['to_msg']
+    print('id: %d, msg: %d, try to handle backend command: %s' % (uid, -1 if msg_id is None else msg_id, command_str))
+
+    command_vec = command['cmd_vec']
     print(command_vec)
     for command in command_vec:
         if get_key(command) == 'send':
@@ -177,9 +181,10 @@ def voice_processing(message):
 
 
 
-def on_engine_event(text, chat_id):
+def on_engine_event(text):
     keyboard = keyboards.action()
-    bot.send_message(chat_id, text, reply_markup=keyboard)
+    handle_backend_command(text)
+    # bot.send_message(chat_id, text, reply_markup=keyboard)
 
 
 
@@ -196,9 +201,8 @@ if __name__ == '__main__':
     verbose = True if args.verbose else False
     one_poll = True if args.one_poll else False
 
-    engine.initialize(verbose)
-    engine.register_callback(on_engine_event)
-    user_chat_id_list = engine.get_user_chat_id_all()
+    engine.initialize(verbose, on_engine_event)
+    # user_chat_id_list = engine.get_user_chat_id_all()
     # for chat_id in user_chat_id_list:
         # fsm[chat_id] = FSMData()
 
