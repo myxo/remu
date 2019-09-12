@@ -133,12 +133,11 @@ fn try_parse_rep(command_line: &String, user_timezone: i32) -> Option<Command> {
     ))
 }
 
-
 fn get_duration_from_capture(cap: &Captures) -> Option<chrono::Duration>{
-    let day:    i64 = cap.name("d_day").map_or    (0, |c| c.as_str().parse().unwrap() );
-    let hour:   i64 = cap.name("d_hour").map_or   (0, |c| c.as_str().parse().unwrap() );
-    let minute: i64 = cap.name("d_minute").map_or (0, |c| c.as_str().parse().unwrap() );
-    let second: i64 = cap.name("d_second").map_or (0, |c| c.as_str().parse().unwrap() );
+    let day:    i64 = cap.name("d_day").map_or    (0, |c| c.as_str().parse().unwrap_or(0) );
+    let hour:   i64 = cap.name("d_hour").map_or   (0, |c| c.as_str().parse().unwrap_or(0) );
+    let minute: i64 = cap.name("d_minute").map_or (0, |c| c.as_str().parse().unwrap_or(0) );
+    let second: i64 = cap.name("d_second").map_or (0, |c| c.as_str().parse().unwrap_or(0) );
 
     if day == 0 && hour == 0 && minute == 0 && second == 0 {
         return None;
@@ -373,6 +372,16 @@ mod tests {
             },
             _ => panic!("Wrong command type")
         };
+    }
+
+    // TODO: research this case
+    #[test]
+    fn parse_for_negative_2() {
+        let command = String::from("С мал");
+        let text = "some text";
+        let command_text = command + " " + text;
+        let result = try_parse_for(&command_text);
+        assert!(result.is_none());
     }
 
 
