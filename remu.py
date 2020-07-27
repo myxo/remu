@@ -206,9 +206,6 @@ if __name__ == '__main__':
     # for chat_id in user_chat_id_list:
         # fsm[chat_id] = FSMData()
 
-    engine.run()
-
-
     while True:
         try:
             bot.polling()

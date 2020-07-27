@@ -132,8 +132,7 @@ impl UserState for ReadyToProcess {
     fn process(&self, id: i64, input: &str, db: &mut DataBase) -> ProcessResult {
         info!("ReadyToProcess::process, input: {}", input);
         if !input.starts_with("/") {
-            let (ret_text, er) = process_text_command(id, input, db);
-            if er == 0 {
+            if let Some(ret_text) = process_text_command(id, input, db) {
                 let command = SendMessageCommand { text: ret_text };
                 return ProcessResult {
                     frontend_command: vec![FrontendCommand::send(command)],
@@ -420,7 +419,7 @@ impl UserState for AtTimeMinute {
                 ev_text.unwrap()
             );
 
-            let (ret_text, er) = process_text_command(id, &result_command, db);
+            let ret_text = process_text_command(id, &result_command, db).unwrap();
             let command = SendMessageCommand { text: ret_text };
             return ProcessResult {
                 frontend_command: vec![FrontendCommand::send(command)],
@@ -475,7 +474,7 @@ impl UserState for AtTimeText {
 impl UserState for AfterInput {
     fn process(&self, id: i64, input: &str, db: &mut DataBase) -> ProcessResult {
         let message = input.to_string() + " " + &self.ev_text;
-        let (ret_text, er) = process_text_command(id, &message, db);
+        let ret_text = process_text_command(id, &message, db).unwrap();
 
         let command = SendMessageCommand {
             text: "Resulting command:\n".to_string() + &message + "\n" + &ret_text,

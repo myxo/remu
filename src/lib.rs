@@ -52,7 +52,7 @@ fn initialize(_py : Python, verbose: bool, callback: PyObject) -> PyResult<bool>
         CALLBACK = Some(callback);
     }
 
-    let (tx_to_engine, rx_out_engine) = engine_run(engine::Mode::Filesystem);
+    let (tx_to_engine, rx_out_engine) = engine_run(database::DbMode::Filesystem);
     unsafe {
         TX_TO_ENGINE = Some(tx_to_engine);
     }

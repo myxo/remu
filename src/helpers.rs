@@ -27,17 +27,15 @@ pub fn format_return_message_header(event_time: &DateTime<Utc>, tz: i32) -> Stri
     t_event.format("I'll remind you %B %e at %H:%M").to_string()
 }
 
-pub fn process_text_command(uid: i64, text_message: &str, db: &mut DataBase) -> (String, i32) {
+pub fn process_text_command(uid: i64, text_message: &str, db: &mut DataBase) -> Option<String> {
     let tz = db.get_user_timezone(uid);
-    let com = parse_command(String::from(text_message), tz);
-    match com {
+    match parse_command(String::from(text_message), tz)? {
         Command::OneTimeEvent(ev) => {
-            process_one_time_event_command(uid, ev, db)
+            Some(process_one_time_event_command(uid, ev, db))
         }
         Command::RepetitiveEvent(ev) => {
-            process_repetitive_event_command(uid, ev, db)
+            Some(process_repetitive_event_command(uid, ev, db))
         }
-        Command::BadCommand => process_bad_command(),
     }
 }
 
@@ -45,7 +43,7 @@ fn process_one_time_event_command(
     uid: i64,
     c: OneTimeEventImpl,
     db: &mut DataBase,
-) -> (String, i32) {
+) -> String {
     let tz = db.get_user_timezone(uid);
     let mut return_string = format_return_message_header(&c.event_time, tz);
     return_string.push('\n');
@@ -59,14 +57,14 @@ fn process_one_time_event_command(
         tmp_string
     );
 
-    (return_string, 0)
+    return_string
 }
 
 fn process_repetitive_event_command(
     uid: i64,
     c: RepetitiveEventImpl,
     db: &mut DataBase,
-) -> (String, i32) {
+) -> String {
     let tz = db.get_user_timezone(uid);
     let mut return_string = format_return_message_header(&c.event_start_time, tz);
     return_string.push('\n');
@@ -80,11 +78,7 @@ fn process_repetitive_event_command(
         tmp_string
     );
 
-    (return_string, 0)
-}
-
-fn process_bad_command() -> (String, i32) {
-    (String::from(""), 1)
+    return_string
 }
 
 pub fn get_active_event_list(uid: i64, db: &mut DataBase) -> Vec<String> {
@@ -99,7 +93,6 @@ pub fn get_active_event_list(uid: i64, db: &mut DataBase) -> Vec<String> {
                 let date: String = (c.event_time + dt).format("%e %b %k.%M").to_string();
                 result.push(format!("{} : _{}_", text, date));
             }
-            Command::BadCommand => {}
             Command::RepetitiveEvent(_ev) => {}
         }
     }
@@ -121,7 +114,6 @@ pub fn get_rep_event_list(uid: i64, db: &mut DataBase) -> (Vec<String>, Vec<i64>
                 result_str.push(text);
                 result_id.push(id);
             }
-            Command::BadCommand => {}
             Command::OneTimeEvent(_ev) => {}
         }
     }

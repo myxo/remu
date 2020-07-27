@@ -5,7 +5,6 @@ use regex::{Captures, Regex};
 
 #[derive(Debug)]
 pub enum Command {
-    BadCommand,
     OneTimeEvent(OneTimeEventImpl),
     RepetitiveEvent(RepetitiveEventImpl),
 }
@@ -31,29 +30,29 @@ const MOMENT_TIME_REGEX: &str = r"(?P<m_hour>[\d]+)(?:[.|:](?P<m_minute>[\d]+))?
 const DURATION_REGEX: &str =
     r"(:?(?P<d_day>[\d]*)[D|d|Д|д])?(:?(?P<d_hour>[\d]*)[H|h|Ч|ч])?(:?(?P<d_minute>[\d]*)[M|m|М|м])?(:?(?P<d_second>[\d]*)[S|s|С|с])?";
 
-pub fn parse_command(command_line: String, user_timezone: i32) -> Command {
+pub fn parse_command(command_line: String, user_timezone: i32) -> Option<Command> {
     let command_line = String::from(command_line.trim());
     let mut result;
     result = try_parse_for(&command_line);
     if result.is_some() {
-        return result.unwrap();
+        return result;
     }
 
     result = try_parse_at(&command_line, user_timezone);
     if result.is_some() {
-        return result.unwrap();
+        return result;
     }
 
     result = try_parse_rep(&command_line, user_timezone);
     if result.is_some() {
-        return result.unwrap();
+        return result;
     }
 
     warn!(
         "parse_command: line {} doesn't match any regex",
         command_line
     );
-    Command::BadCommand
+    None
 }
 
 fn try_parse_at(command_line: &str, user_timezone: i32) -> Option<Command> {
