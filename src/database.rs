@@ -2,7 +2,7 @@ use crate::command::{Command, OneTimeEventImpl, RepetitiveEventImpl};
 use crate::sql_query as sql_q;
 use chrono;
 use chrono::prelude::*;
-use rusqlite::Connection;
+use rusqlite::{params, Connection};
 
 pub struct DataBase {
     conn: Connection,
@@ -15,13 +15,13 @@ impl DataBase {
         } else {
             Connection::open("database.db").expect("Cannot connect to sqlite")
         };
-        conn.execute(sql_q::CREATE_USER_TABLE, &[])
+        conn.execute(sql_q::CREATE_USER_TABLE, params![])
             .expect("Cannot create user table");
-        conn.execute(sql_q::CREATE_ACTIVE_EVENT_TABLE, &[])
+        conn.execute(sql_q::CREATE_ACTIVE_EVENT_TABLE, params![])
             .expect("Cannot create active_event table");
-        conn.execute(sql_q::CREATE_REP_EVENT_TABLE, &[])
+        conn.execute(sql_q::CREATE_REP_EVENT_TABLE, params![])
             .expect("Cannot create scheduled_event table");
-        conn.execute(sql_q::PRAGMA_FOREING_KEY, &[])
+        conn.execute(sql_q::PRAGMA_FOREING_KEY, params![])
             .expect("Cannot apply pragma foreing key");
         DataBase { conn }
     }
@@ -37,7 +37,7 @@ impl DataBase {
     ) -> bool {
         let res = self.conn.execute(
             sql_q::INSERT_USER,
-            &[&uid, &username, &first_name, &last_name, &chat_id, &tz],
+            params![&uid, &username, &first_name, &last_name, &chat_id, &tz],
         );
         if res.is_err() {
             error!(
@@ -76,15 +76,15 @@ impl DataBase {
                 .expect("error in sql connection prepare");
             let mut rows = (stmt.query(&[&event_timestamp])).unwrap();
 
-            while let Some(result_row) = rows.next() {
+            while let Ok(result_row) = rows.next() {
                 let row = result_row.unwrap();
-                let id: i64 = row.get(0);
-                parent_id = row.get(3);
+                let id: i64 = row.get(0).unwrap();
+                parent_id = row.get(3).unwrap();
                 let c = Command::OneTimeEvent(OneTimeEventImpl {
-                    event_text: row.get(1),
-                    event_time: Utc.timestamp(row.get(2), 0),
+                    event_text: row.get(1).unwrap(),
+                    event_time: Utc.timestamp(row.get(2).unwrap(), 0),
                 });
-                uid = row.get(4);
+                uid = row.get(4).unwrap();
                 self.conn
                     .execute(sql_q::DELETE_FROM_ACTIVE_EVENT_BY_ID, &[&id])
                     .expect("Cannot remove from one_time_event table");
@@ -97,16 +97,16 @@ impl DataBase {
             let event = self
                 .conn
                 .query_row(sql_q::SELECT_REP_BY_ID, &[&parent_id], |row| {
-                    get_nearest_active_event_from_repetitive_params(
-                        row.get(2),
-                        row.get(3),
-                        row.get(1),
-                    )
+                    Ok(get_nearest_active_event_from_repetitive_params(
+                        row.get(2).unwrap(),
+                        row.get(3).unwrap(),
+                        row.get(1).unwrap(),
+                    ))
                 });
             let event = event.unwrap();
             let res = self.conn.execute(
                 sql_q::INSERT_ACTIVE_EVENT,
-                &[
+                params![
                     &event.event_text,
                     &event.event_time.timestamp(),
                     &uid,
@@ -126,14 +126,9 @@ impl DataBase {
 
     pub fn get_nearest_wakeup(&self) -> Option<DateTime<Utc>> {
         self.conn
-            .query_row(sql_q::MIN_TIMESTAMP_FROM_ACTIVE_EVENT, &[], |row| {
-                let result = row.get_checked(0);
-                match result {
-                    Ok(expr) => Some(Utc.timestamp(expr, 0)),
-                    Err(_) => None,
-                }
-            })
-            .unwrap()
+            .query_row(sql_q::MIN_TIMESTAMP_FROM_ACTIVE_EVENT, params![], |row| {
+                row.get(0).map(|expr| Utc.timestamp(expr, 0))
+            }).ok()
     }
 
     pub fn get_all_active_events(&self, uid: i64) -> Vec<Command> {
@@ -145,10 +140,10 @@ impl DataBase {
             .expect("error in sql connection prepare");
         let command_iter = stmt
             .query_map(&[&uid], |row| {
-                Command::OneTimeEvent(OneTimeEventImpl {
-                    event_text: row.get(1),
-                    event_time: Utc.timestamp(row.get(2), 0),
-                })
+                Ok(Command::OneTimeEvent(OneTimeEventImpl {
+                    event_text: row.get(1).unwrap(),
+                    event_time: Utc.timestamp(row.get(2).unwrap(), 0),
+                }))
             })
             .expect("error in query map");
 
@@ -168,14 +163,14 @@ impl DataBase {
             .expect("error in sql connection prepare");
         let command_iter = stmt
             .query_map(&[&uid], |row| {
-                (
+                Ok((
                     Command::RepetitiveEvent(RepetitiveEventImpl {
-                        event_text: row.get(1),
-                        event_start_time: Utc.timestamp(row.get(2), 0),
-                        event_wait_time: chrono::Duration::seconds(row.get(3)),
+                        event_text: row.get(1).unwrap(),
+                        event_start_time: Utc.timestamp(row.get(2).unwrap(), 0),
+                        event_wait_time: chrono::Duration::seconds(row.get(3).unwrap()),
                     }),
-                    row.get(0),
-                )
+                    row.get(0).unwrap(),
+                ))
             })
             .expect("error in query map");
 
@@ -218,7 +213,7 @@ impl DataBase {
             .conn
             .prepare(sql_q::GET_ALL_USER_CHAT_ID)
             .expect("error in sql connection prepare");
-        stmt.query_map(&[], |row| row.get(0))
+        stmt.query_map(params![], |row| row.get(0))
             .expect("error in query map")
             .for_each(|id| {
                 result.push(id.unwrap());
@@ -232,7 +227,7 @@ impl DataBase {
         let parent_id = -1;
         let res = self.conn.execute(
             sql_q::INSERT_ACTIVE_EVENT,
-            &[&command.event_text, &event_time, &uid, &parent_id],
+            params![&command.event_text, &event_time, &uid, &parent_id],
         );
         if res.is_err() {
             error!(
@@ -249,7 +244,7 @@ impl DataBase {
         let event_wait: i64 = command.event_wait_time.num_seconds();
         let res = self.conn.execute(
             sql_q::INSERT_REP_EVENT,
-            &[&command.event_text, &event_time, &event_wait, &uid],
+            params![&command.event_text, &event_time, &event_wait, &uid],
         );
         if res.is_err() {
             error!(
@@ -268,7 +263,7 @@ impl DataBase {
 
         let res = self.conn.execute(
             sql_q::INSERT_ACTIVE_EVENT,
-            &[
+            params![
                 &active_event.event_text,
                 &active_event.event_time.timestamp(),
                 &uid,
