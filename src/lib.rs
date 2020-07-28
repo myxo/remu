@@ -5,7 +5,7 @@ extern crate log;
 
 mod command;
 pub mod engine;
-mod database;
+pub mod database;
 mod sql_query;
 mod state;
 mod helpers;

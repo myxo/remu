@@ -11,6 +11,7 @@ use crate::command::*;
 use crate::database::{DataBase, DbMode, UserInfo};
 use crate::state::*;
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum CmdToEngine {
     AddUser {uid: i64, username: String, chat_id: i64, first_name: String, last_name: String, tz: i32},
     TextMessage {uid: i64, msg_id: i64, message: String},
@@ -20,9 +21,9 @@ pub enum CmdToEngine {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct CmdFromEngine {
-    uid: i64,
-    to_msg: Option<i64>,
-    cmd_vec: Vec<FrontendCommand>,
+    pub uid: i64,
+    pub to_msg: Option<i64>,
+    pub cmd_vec: Vec<FrontendCommand>,
 }
 
 struct Engine {
@@ -50,6 +51,7 @@ pub fn engine_run(mode: DbMode) -> (mpsc::Sender<CmdToEngine>, mpsc::Receiver<Cm
             }
 
             if let Ok(message) = rx_in_engine.try_recv(){
+                info!("{}", serde_json::to_string(&message).unwrap());
                 match message {
                     CmdToEngine::AddUser {uid, username, chat_id, first_name, last_name, tz} => { 
                         engine.add_user(uid, &username, chat_id, &first_name, &last_name, tz);
