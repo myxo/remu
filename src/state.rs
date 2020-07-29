@@ -8,20 +8,13 @@ use crate::helpers::*;
 use crate::time::now;
 
 // FIXME: make struct derive from String
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct SendMessageCommand {
     pub text: String,
 }
 
-impl PartialEq for SendMessageCommand {
-    fn eq(&self, other: &Self) -> bool {
-        self.text == other.text
-    }
-}
-impl Eq for SendMessageCommand {}
-
 // FIXME: remove clone trait
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct AtCalendarCommand {
     action_type: String,
     year: i32,
@@ -30,14 +23,14 @@ pub struct AtCalendarCommand {
     edit_msg: bool,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct KeyboardCommand {
     pub action_type: String,
     pub text: String,
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Clone, Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub enum FrontendCommand {
     send(SendMessageCommand),
     calendar(AtCalendarCommand),

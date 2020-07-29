@@ -20,7 +20,7 @@ pub enum CmdToEngine {
     Terminate,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct CmdFromEngine {
     pub uid: i64,
     pub to_msg: Option<i64>,
@@ -174,7 +174,7 @@ impl Engine {
         }
         let next_wakeup = self.next_wakeup.unwrap();
 
-        if now() > next_wakeup {
+        if now() >= next_wakeup {
             self.next_wakeup = self.data_base.get_nearest_wakeup();
             if let Some((command, uid)) = self.data_base.pop(next_wakeup) {
                 let event_text = match command {
