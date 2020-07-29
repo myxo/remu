@@ -4,9 +4,11 @@ extern crate chrono;
 
 use remu_backend::engine::{CmdToEngine, CmdFromEngine, engine_run};
 use remu_backend::database::DbMode;
+use remu_backend::state::FrontendCommand;
 // use std::time;
 use chrono::prelude::*;
 use std::sync::mpsc;
+use regex::Regex;
 
 // fn time_moment_eq(t1: DateTime<FixedOffset>, t2: DateTime<FixedOffset>) -> bool{
 //     t1.signed_duration_since(t2).num_milliseconds().abs() < 1500
@@ -34,6 +36,24 @@ struct TestCase {
     cmd_list : Vec<Cmd>,
     tx_to_engine: mpsc::Sender<CmdToEngine>,
     rx_out_engine: mpsc::Receiver<CmdFromEngine>,
+}
+
+fn assert_match_regex (s: &str, regex : &str) {
+    let re = Regex::new(regex).unwrap();
+    assert!(re.is_match(s));
+}
+
+fn compare(responce: &FrontendCommand, expected: &FrontendCommand) {
+    match responce {
+        FrontendCommand::send(send_msg1) => {
+            if let FrontendCommand::send(send_msg2) = expected {
+                // assert_match_regex(&send_msg1.text, &send_msg2.text);
+            } else {
+                assert_eq!(1, 2);
+            }
+        },
+        _ => {},
+    }
 }
 
 impl TestCase {
@@ -78,6 +98,7 @@ impl TestCase {
         assert_eq!(response.uid, expect.uid);
         assert_eq!(response.to_msg, expect.to_msg);
         assert_eq!(response.cmd_vec.len(), expect.cmd_vec.len());
+        compare(&response.cmd_vec[0], &expect.cmd_vec[0]);
         // assert!(tx_to_engine.send(cmd).is_ok());
     }
 }

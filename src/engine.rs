@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 use crate::command::*;
 use crate::database::{DataBase, DbMode, UserInfo};
 use crate::state::*;
+use crate::time::now;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum CmdToEngine {
@@ -173,7 +174,7 @@ impl Engine {
         }
         let next_wakeup = self.next_wakeup.unwrap();
 
-        if Utc::now() > next_wakeup {
+        if now() > next_wakeup {
             self.next_wakeup = self.data_base.get_nearest_wakeup();
             if let Some((command, uid)) = self.data_base.pop(next_wakeup) {
                 let event_text = match command {

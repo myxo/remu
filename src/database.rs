@@ -1,5 +1,6 @@
 use crate::command::{Command, OneTimeEventImpl, RepetitiveEventImpl};
 use crate::sql_query as sql_q;
+use crate::time::now;
 use chrono::{Utc};
 use chrono::prelude::*;
 use rusqlite::{params, Connection};
@@ -282,7 +283,7 @@ fn get_nearest_active_event_from_repetitive_params(
     wait_time: i64,
     text: String,
 ) -> OneTimeEventImpl {
-    let now = Utc::now();
+    let now = now();
     let wait_time = if wait_time < 0 { 1 } else { wait_time }; // TODO: make propper error handling
     let dt = chrono::Duration::seconds(wait_time);
     let mut event_time = Utc.timestamp(start_time, 0);

@@ -5,11 +5,20 @@ use serde::{Deserialize, Serialize};
 use crate::database::DataBase;
 use crate::engine::ProcessResult;
 use crate::helpers::*;
+use crate::time::now;
 
+// FIXME: make struct derive from String
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct SendMessageCommand {
-    text: String,
+    pub text: String,
 }
+
+impl PartialEq for SendMessageCommand {
+    fn eq(&self, other: &Self) -> bool {
+        self.text == other.text
+    }
+}
+impl Eq for SendMessageCommand {}
 
 // FIXME: remove clone trait
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -107,7 +116,7 @@ impl ReadyToProcess {
         info!("ReadyToProcess::start_Calendar");
         let tz = db.get_user_timezone(id);
         let dt = chrono::Duration::seconds((tz as i64) * 60 * 60);
-        let now = Utc::now() - dt;
+        let now = now() - dt;
         let edit_msg: bool = !input.starts_with("/at");
 
         let command = AtCalendarCommand {
@@ -323,9 +332,9 @@ impl UserState for AtCalendar {
                 text: "Ok, now write the time of event".to_string(),
             };
             let now = if callback_data == "today" {
-                Utc::now()
+                now()
             } else {
-                Utc::now() + chrono::Duration::days(1)
+                now() + chrono::Duration::days(1)
             };
             return ProcessResult {
                 frontend_command: vec![FrontendCommand::keyboard(command)],

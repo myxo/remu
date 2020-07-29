@@ -6,8 +6,9 @@ extern crate log;
 mod command;
 pub mod engine;
 pub mod database;
+pub mod state;
+pub mod time;
 mod sql_query;
-mod state;
 mod helpers;
 
 use engine::{CmdToEngine, engine_run};

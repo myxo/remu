@@ -2,6 +2,7 @@ extern crate chrono;
 
 use chrono::prelude::*;
 use regex::{Captures, Regex};
+use crate::time::now;
 
 #[derive(Debug)]
 pub enum Command {
@@ -85,7 +86,7 @@ fn try_parse_for(command_line: &str) -> Option<Command> {
 
     Some(Command::OneTimeEvent(OneTimeEventImpl {
         event_text: String::from(text),
-        event_time: Utc::now() + dt,
+        event_time: now() + dt,
     }))
 }
 
@@ -136,7 +137,7 @@ fn get_duration_from_capture(cap: &Captures) -> Option<chrono::Duration>{
 #[rustfmt::skip]
 fn get_datetime_from_capture(cap: &Captures, tz: i32) -> Option<DateTime<Utc>>{
     let dt = chrono::Duration::seconds((tz as i64) * 60 * 60);
-    let now = Utc::now() - dt;
+    let now = now() - dt;
 
     let day     = cap.name("m_day").map_or(now.day(),       |c| c.as_str().parse().unwrap());
     let month   = cap.name("m_month").map_or(now.month(),   |c| c.as_str().parse().unwrap());
@@ -177,7 +178,7 @@ mod tests {
         match result.unwrap() {
             OneTimeEvent(res) => {
                 assert_eq!(res.event_text, text);
-                assert!(time_moment_eq(res.event_time, Utc::now() + dt));
+                assert!(time_moment_eq(res.event_time, now() + dt));
             }
             _ => panic!("Wrong command type"),
         };
@@ -199,7 +200,7 @@ mod tests {
         match result.unwrap() {
             OneTimeEvent(res) => {
                 assert_eq!(res.event_text, text);
-                assert!(time_moment_eq(res.event_time, Utc::now() + dt));
+                assert!(time_moment_eq(res.event_time, now() + dt));
             }
             _ => panic!("Wrong command type"),
         };
@@ -231,7 +232,7 @@ mod tests {
             let command = String::from("24-10 at 18.30");
             let text = "some text";
             let command_text = command + " " + text;
-            let now = Utc::now();
+            let now = now();
             let t = Utc.ymd(now.year(), 10, 24).and_hms(18 - 3, 30, 0);
 
             let result = try_parse_at(&command_text, -3);
@@ -249,7 +250,7 @@ mod tests {
             let command = String::from("24 at 18.30");
             let text = "some text";
             let command_text = command + " " + text;
-            let now = Utc::now();
+            let now = now();
             let t = Utc.ymd(now.year(), now.month(), 24).and_hms(18 - 3, 30, 0);
 
             let result = try_parse_at(&command_text, -3);
@@ -266,7 +267,7 @@ mod tests {
             let command = String::from("at 18.30");
             let text = "some text";
             let command_text = command + " " + text;
-            let now = Utc::now();
+            let now = now();
             let t = Utc
                 .ymd(now.year(), now.month(), now.day())
                 .and_hms(18, 30, 0);
@@ -285,7 +286,7 @@ mod tests {
             let command = String::from("at 18");
             let text = "some text";
             let command_text = command + " " + text;
-            let now = Utc::now();
+            let now = now();
             let t = Utc
                 .ymd(now.year(), now.month(), now.day())
                 .and_hms(18, 0, 0);
@@ -343,7 +344,7 @@ mod tests {
         let command = String::from("rep 06-10 10.00 5m");
         let text = "test rep";
         let command_text = command + " " + text;
-        let now = Utc::now();
+        let now = now();
         let t = Utc.ymd(now.year(), 10, 6).and_hms(10 - 3, 0, 0);
         let dt = chrono::Duration::seconds(
             (0 as i64) * (60*60*24)  // days
