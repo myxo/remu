@@ -21,10 +21,7 @@ use std::thread;
 static mut CALLBACK : Option<PyObject> = None;
 static mut TX_TO_ENGINE : Option<mpsc::Sender<CmdToEngine>> = None;
 
-py_module_initializer!(libremu_backend, 
-    initlibremu_backend, 
-    PyInit_libremu_backend, 
-    |py, m| 
+py_module_initializer!(libremu_backend, |py, m| 
     {
         m.add(py, "initialize", py_fn!(py, initialize(verbose: bool, callback: PyObject)))?;
         m.add(py, "stop", py_fn!(py, stop()))?;
@@ -61,7 +58,7 @@ fn initialize(_py : Python, verbose: bool, callback: PyObject) -> PyResult<bool>
     thread::spawn(move || {
         for cmd in rx_out_engine {
             let cmd_str = serde_json::to_string(&cmd).unwrap();
-            println!("{}", &cmd_str);
+            info!("EXPECT: {}", &cmd_str);
             engine_callback(cmd_str);
         }
     });

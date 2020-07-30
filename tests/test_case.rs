@@ -44,8 +44,8 @@ impl TestCase {
     pub fn run(&self) {
         for cmd in &self.cmd_list {
             match cmd {
-                Cmd::Send(json) => self.handle_send(serde_json::from_str(json).unwrap()),
-                Cmd::Expect(json) => self.handle_expect(serde_json::from_str(json).unwrap()),
+                Cmd::Send(json) => self.handle_send(serde_json::from_str(json).expect("wrong json")),
+                Cmd::Expect(json) => self.handle_expect(serde_json::from_str(json).expect("wrong json")),
                 Cmd::TimeAdvance(seconds) => self.handle_advance_time(*seconds),
             }
         }

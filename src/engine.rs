@@ -52,7 +52,7 @@ pub fn engine_run(mode: DbMode) -> (mpsc::Sender<CmdToEngine>, mpsc::Receiver<Cm
             }
 
             if let Ok(message) = rx_in_engine.try_recv(){
-                info!("{}", serde_json::to_string(&message).unwrap());
+                info!("SEND: {}", serde_json::to_string(&message).unwrap());
                 match message {
                     CmdToEngine::AddUser {uid, username, chat_id, first_name, last_name, tz} => { 
                         engine.add_user(uid, &username, chat_id, &first_name, &last_name, tz);
@@ -60,12 +60,16 @@ pub fn engine_run(mode: DbMode) -> (mpsc::Sender<CmdToEngine>, mpsc::Receiver<Cm
 
                     CmdToEngine::TextMessage {uid, msg_id, message} => { 
                         let res = engine.handle_text_message(uid, &message);
-                        tx_from_engine.send(CmdFromEngine{uid, to_msg: Some(msg_id), cmd_vec: res}).unwrap();
+                        if let Err(error) = tx_from_engine.send(CmdFromEngine{uid, to_msg: Some(msg_id), cmd_vec: res}) {
+                            error!("Cannot send CmdFromEngine: {}", error);
+                        }
                     },
 
                     CmdToEngine::KeyboardMessage {uid, msg_id, call_data, msg_text} => {
                         let res = engine.handle_keyboard_responce(uid, &call_data, &msg_text);
-                        tx_from_engine.send(CmdFromEngine{uid, to_msg: Some(msg_id), cmd_vec: res}).unwrap();
+                        if let Err(error) = tx_from_engine.send(CmdFromEngine{uid, to_msg: Some(msg_id), cmd_vec: res}) {
+                            error!("Cannot send CmdFromEngine: {}", error);
+                        }
                     }
 
                     CmdToEngine::Terminate => {

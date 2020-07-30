@@ -5,7 +5,6 @@ import threading
 import time
 import os
 import json
-import pprint
 from enum import Enum
 
 import telebot
@@ -31,8 +30,6 @@ def handle_text(message):
         on_start_command(message)
         return
 
-    print('handle_text function')
-    
     command = engine.handle_text_message(message.chat.id, msg_id, input_text)
     # handle_backend_command(id, msg_id, command)
     return
@@ -42,9 +39,15 @@ def on_start_command(message):
     username = ''
     first_name = ''
     last_name = ''
-    if message.from_user.username: username = message.from_user.username
-    if message.from_user.first_name: first_name = message.from_user.first_name
-    if message.from_user.last_name: last_name = message.from_user.last_name
+    if message.from_user.username: 
+        username = message.from_user.username
+
+    if message.from_user.first_name: 
+        first_name = message.from_user.first_name
+
+    if message.from_user.last_name: 
+        last_name = message.from_user.last_name
+
     engine.add_user(message.from_user.id, 
                     username, 
                     message.chat.id, 
@@ -73,10 +76,9 @@ def handle_backend_command(command_str):
     command = json.loads(command_str)
     uid = command['uid']
     msg_id = command['to_msg']
-    print('id: %d, msg: %d, try to handle backend command: %s' % (uid, -1 if msg_id is None else msg_id, command_str))
+    # print('id: %d, msg: %d, try to handle backend command: %s' % (uid, -1 if msg_id is None else msg_id, command_str))
 
     command_vec = command['cmd_vec']
-    print(command_vec)
     for command in command_vec:
         if get_key(command) == 'send':
             bot.send_message(uid, command['send']['text'], parse_mode='Markdown')
@@ -109,7 +111,7 @@ def handle_calendar_call(chat_id, msg_id, command):
     month = command['month']
     year = command['year']
     markup = keyboards.calendar(year, month)
-    if command['edit_msg'] == True:
+    if command['edit_cur_msg'] == True:
         bot.edit_message_text("Please, choose a date", chat_id, msg_id, reply_markup=markup)
     else: 
         bot.send_message(chat_id, "Please, choose a date", reply_markup=markup)

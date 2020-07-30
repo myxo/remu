@@ -20,7 +20,7 @@ pub struct AtCalendarCommand {
     year: i32,
     month: i32,
     tz: i32,
-    edit_msg: bool,
+    edit_cur_msg: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -110,14 +110,14 @@ impl ReadyToProcess {
         let tz = db.get_user_timezone(id);
         let dt = chrono::Duration::seconds((tz as i64) * 60 * 60);
         let now = now() - dt;
-        let edit_msg: bool = !input.starts_with("/at");
+        let edit_cur_msg: bool = !input.starts_with("/at");
 
         let command = AtCalendarCommand {
             action_type: "calendar".to_string(),
             month: now.month() as i32,
             year: now.year() as i32,
             tz,
-            edit_msg,
+            edit_cur_msg,
         };
 
         ProcessResult {
@@ -292,7 +292,7 @@ impl UserState for AtCalendar {
             let mut new_command = self.command.clone();
             new_command.month = month;
             new_command.year = year;
-            new_command.edit_msg = true;
+            new_command.edit_cur_msg = true;
 
             // FIXME: check to_string result
             return ProcessResult {

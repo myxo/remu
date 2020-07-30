@@ -4,6 +4,7 @@ use crate::command::*;
 use crate::database::DataBase;
 use crate::time::now;
 
+// TODO: make test
 pub fn format_return_message_header(event_time: &DateTime<Utc>, tz: i32) -> String {
     let tz = FixedOffset::west(tz * 3600);
     let t_event = event_time.with_timezone(&tz);

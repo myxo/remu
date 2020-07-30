@@ -12,3 +12,5 @@ token.id
 chat.id
 yandex_api.id
 database.db
+config.py
+remu-bot.service
