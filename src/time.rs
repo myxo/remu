@@ -5,6 +5,11 @@ pub fn now() -> DateTime<Utc> {
     Utc::now()
 }
 
+#[cfg(not(feature = "mock-time"))]
+pub fn set_mock_time(_time: Option<DateTime<Utc>>) {
+    warn!("Setting mock time outside of feature = \"mock-time\" enviroment");
+}
+
 #[cfg(feature = "mock-time")]
 pub mod mock_time {
     use super::*;
@@ -26,3 +31,6 @@ pub mod mock_time {
 
 #[cfg(feature = "mock-time")]
 pub use mock_time::now;
+
+#[cfg(feature = "mock-time")]
+pub use mock_time::set_mock_time;

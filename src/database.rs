@@ -23,6 +23,12 @@ pub struct UserInfo <'a>{
     pub tz: i32,
 }
 
+#[derive(Debug, PartialEq)]
+pub struct RetrieveEventsResult {
+    pub command : Command,
+    pub uid: i64,
+}
+
 impl DataBase {
     pub fn new(mode: DbMode) -> DataBase {
         let conn = match mode {
@@ -56,65 +62,50 @@ impl DataBase {
 
     pub fn put(&mut self, uid: i64, value: Command) -> bool {
         match value {
-            Command::OneTimeEvent(ev) => self.put_one_time_event(uid, &ev),
+            Command::OneTimeEvent(ev) => self.put_one_time_event(uid, -1, &ev),
             Command::RepetitiveEvent(ev) => self.put_repetitive_event(uid, &ev),
         }
     }
 
-    pub fn pop(&mut self, key: DateTime<Utc>) -> Option<(Command, i64)> {
-        let event_timestamp = key.timestamp();
-        let mut result = None;
-        let mut parent_id: i32 = -1;
-        let mut uid: i64 = -1;
-
+    pub fn extract_events_happens_already(&mut self, time: DateTime<Utc>) -> Vec<RetrieveEventsResult> {
+        let mut result : Vec<RetrieveEventsResult> = Vec::new();
+        let mut parent_vec : Vec<i64> = Vec::new();
         {
             let mut stmt = self
                 .conn
-                .prepare(sql_q::SELECT_ACTIVE_EVENT_BY_TIMESTAMP)
-                .expect("error in sql connection prepare");
-            let mut rows = (stmt.query(&[&event_timestamp])).unwrap();
+                .prepare(sql_q::SELECT_ACTIVE_EVENTS_LESS_BY_TIMESTAMP)
+                .expect("error in sql query");
+            let mut rows = (stmt.query(&[&time.timestamp()])).unwrap();
 
             while let Ok(Some(row)) = rows.next() {
                 let id: i64 = row.get(0).unwrap();
-                parent_id = row.get(3).unwrap();
-                let comm = Command::OneTimeEvent(OneTimeEventImpl {
+                let command = Command::OneTimeEvent(OneTimeEventImpl {
                     event_text: row.get(1).unwrap(),
                     event_time: Utc.timestamp(row.get(2).unwrap(), 0),
                 });
-                uid = row.get(4).unwrap();
                 self.conn
                     .execute(sql_q::DELETE_FROM_ACTIVE_EVENT_BY_ID, &[&id])
                     .expect("Cannot remove from one_time_event table");
-                result = Some((comm, uid));
-                break;
+                let parent_id = row.get(3).unwrap();
+                let uid = row.get(4).unwrap();
+                result.push(RetrieveEventsResult{ command, uid });
+                parent_vec.push(parent_id);
             }
         }
 
-        if parent_id != -1 {
-            let event = self
-                .conn
-                .query_row(sql_q::SELECT_REP_BY_ID, &[&parent_id], |row| {
-                    Ok(get_nearest_active_event_from_repetitive_params(
-                        row.get(2).unwrap(),
-                        row.get(3).unwrap(),
-                        row.get(1).unwrap(),
-                    ))
-                });
-            let event = event.unwrap();
-            let res = self.conn.execute(
-                sql_q::INSERT_ACTIVE_EVENT,
-                params![
-                    &event.event_text,
-                    &event.event_time.timestamp(),
-                    &uid,
-                    &parent_id,
-                ],
-            );
-            if res.is_err() {
-                error!(
-                    "Can't insert one time event in db. Reasone: {}",
-                    res.unwrap_err()
-                );
+        for (parent_id, command) in parent_vec.iter().zip(result.iter()) {
+            if *parent_id != -1 {
+                let event = self
+                    .conn
+                    .query_row(sql_q::SELECT_REP_BY_ID, &[&parent_id], |row| {
+                        Ok(create_nearest_active_event_from_repetitive(
+                            row.get(2).unwrap(),
+                            row.get(3).unwrap(),
+                            row.get(1).unwrap(),
+                        ))
+                    });
+                let event = event.unwrap();
+                self.put_one_time_event(command.uid, *parent_id, &event);
             }
         }
 
@@ -219,9 +210,8 @@ impl DataBase {
         result
     }
 
-    fn put_one_time_event(&mut self, uid: i64, command: &OneTimeEventImpl) -> bool {
+    fn put_one_time_event(&mut self, uid: i64, parent_id: i64, command: &OneTimeEventImpl) -> bool {
         let event_time = command.event_time.timestamp();
-        let parent_id = -1;
         let res = self.conn.execute(
             sql_q::INSERT_ACTIVE_EVENT,
             params![&command.event_text, &event_time, &uid, &parent_id],
@@ -252,33 +242,17 @@ impl DataBase {
         }
 
         let id = self.conn.last_insert_rowid();
-        let active_event = get_nearest_active_event_from_repetitive_params(
+        let active_event = create_nearest_active_event_from_repetitive(
             command.event_start_time.timestamp(),
             command.event_wait_time.num_seconds(),
             command.event_text.clone(),
         );
 
-        let res = self.conn.execute(
-            sql_q::INSERT_ACTIVE_EVENT,
-            params![
-                &active_event.event_text,
-                &active_event.event_time.timestamp(),
-                &uid,
-                &id,
-            ],
-        );
-        if res.is_err() {
-            error!(
-                "Can't insert one time event in db. Reasone: {}",
-                res.unwrap_err()
-            );
-            return false;
-        }
-        true
+        self.put_one_time_event(uid, id, &active_event)
     }
 } // impl DataBase
 
-fn get_nearest_active_event_from_repetitive_params(
+fn create_nearest_active_event_from_repetitive(
     start_time: i64,
     wait_time: i64,
     text: String,
@@ -362,8 +336,46 @@ mod tests {
         assert_eq!(wake.unwrap().timestamp(), 61);
 
         // pop event
-        let event = db.pop(Utc.timestamp(61, 0));
+        let events = db.extract_events_happens_already(Utc.timestamp(61, 0));
         assert!(db.get_nearest_wakeup().is_none());
-        assert!(event.is_some());
+        assert_eq!(events.len(), 1);
+    }
+
+    #[test]
+    fn get_multiple_events() {
+        let mut db = DataBase::new(DbMode::InMemory);
+        let info = UserInfo {
+            uid: 1,
+            name: "name",
+            chat_id: 123,
+            first_name: "first",
+            last_name: "last",
+            tz: -1,
+        };
+        db.add_user(info).unwrap();
+
+        let event1 = Command::OneTimeEvent(OneTimeEventImpl {
+            event_text: String::from("test"),
+            event_time: Utc.timestamp(61, 0),
+        });
+        let event2 = Command::OneTimeEvent(OneTimeEventImpl {
+            event_text: String::from("test"),
+            event_time: Utc.timestamp(63, 0),
+        });
+        let event3 = Command::OneTimeEvent(OneTimeEventImpl {
+            event_text: String::from("test"),
+            event_time: Utc.timestamp(65, 0),
+        });
+        db.put(1, event1.clone());
+        db.put(1, event2.clone());
+        db.put(1, event3.clone());
+        
+        let expect = vec![
+            RetrieveEventsResult{command: event1, uid: 1},
+            RetrieveEventsResult{command: event2, uid: 1}
+        ];
+
+        let events = db.extract_events_happens_already(Utc.timestamp(64, 0));
+        assert_eq!(events, expect);
     }
 }

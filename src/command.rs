@@ -4,19 +4,19 @@ use chrono::prelude::*;
 use regex::{Captures, Regex};
 use crate::time::now;
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Command {
     OneTimeEvent(OneTimeEventImpl),
     RepetitiveEvent(RepetitiveEventImpl),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct OneTimeEventImpl {
     pub event_time: DateTime<Utc>,
     pub event_text: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct RepetitiveEventImpl {
     pub event_start_time: DateTime<Utc>,
     pub event_wait_time: chrono::Duration,

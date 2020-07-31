@@ -1,6 +1,5 @@
 use remu_backend::database::DbMode;
 use remu_backend::engine::{CmdToEngine, CmdFromEngine, engine_run};
-use remu_backend::time::mock_time::{set_mock_time, now};
 use std::sync::mpsc;
 
 #[derive(Copy, Clone)]
@@ -65,7 +64,8 @@ impl TestCase {
     }
 
     fn handle_advance_time(&self, seconds: i64) {
-        set_mock_time(Some(now() + chrono::Duration::seconds(seconds)));
+        let cmd_json = format!("{{\"AdvanceTime\": {}}}", seconds);
+        assert!(self.tx_to_engine.send(serde_json::from_str(&cmd_json).expect("wrong json")).is_ok());
     }
 }
 

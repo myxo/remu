@@ -47,8 +47,8 @@ pub const GET_ALL_USER_CHAT_ID: &str =
 pub const INSERT_ACTIVE_EVENT: &str = 
     "INSERT INTO active_event(event_text, event_time, uid, parent_id) VALUES (?1, ?2, ?3, ?4);";
 
-pub const SELECT_ACTIVE_EVENT_BY_TIMESTAMP: &str = 
-    "SELECT id, event_text, event_time, parent_id, uid FROM active_event WHERE event_time = ?1;";
+pub const SELECT_ACTIVE_EVENTS_LESS_BY_TIMESTAMP: &str = 
+    "SELECT id, event_text, event_time, parent_id, uid FROM active_event WHERE event_time <= ?1;";
 
 pub const DELETE_FROM_ACTIVE_EVENT_BY_ID: &str =
     "DELETE FROM active_event WHERE id = ?1;";

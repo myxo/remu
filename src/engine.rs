@@ -1,5 +1,4 @@
 use chrono;
-use chrono::prelude::*;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
@@ -10,13 +9,14 @@ use serde::{Deserialize, Serialize};
 use crate::command::*;
 use crate::database::{DataBase, DbMode, UserInfo};
 use crate::state::*;
-use crate::time::now;
+use crate::time::{now, set_mock_time};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum CmdToEngine {
     AddUser {uid: i64, username: String, chat_id: i64, first_name: String, last_name: String, tz: i32},
     TextMessage {uid: i64, msg_id: i64, message: String},
     KeyboardMessage {uid: i64, msg_id: i64, call_data: String, msg_text: String},
+    AdvanceTime(i64), // used in test enviroment so engine known that time has been advanced
     Terminate,
 }
 
@@ -28,7 +28,6 @@ pub struct CmdFromEngine {
 }
 
 struct Engine {
-    next_wakeup: Option<DateTime<Utc>>,
     data_base: DataBase,
     stop_loop: AtomicBool,
     user_states: HashMap<i32, Box<dyn UserState>>,
@@ -47,11 +46,12 @@ pub fn engine_run(mode: DbMode) -> (mpsc::Sender<CmdToEngine>, mpsc::Receiver<Cm
         let mut engine = Engine::new(mode);
 
         while !engine.stop_loop.load(Ordering::Relaxed) {
-            if let Some(cmd) = engine.tick() {
-                tx_from_engine.send(cmd).unwrap();
+            for event in engine.tick() {
+                tx_from_engine.send(event).unwrap();
             }
 
-            if let Ok(message) = rx_in_engine.try_recv(){
+            let dt = engine.get_time_until_next_wakeup();
+            if let Ok(message) = rx_in_engine.recv_timeout(dt){
                 info!("SEND: {}", serde_json::to_string(&message).unwrap());
                 match message {
                     CmdToEngine::AddUser {uid, username, chat_id, first_name, last_name, tz} => { 
@@ -72,14 +72,16 @@ pub fn engine_run(mode: DbMode) -> (mpsc::Sender<CmdToEngine>, mpsc::Receiver<Cm
                         }
                     }
 
+                    CmdToEngine::AdvanceTime(seconds) => {
+                        set_mock_time(Some(now() + chrono::Duration::seconds(seconds)));
+                    }
+
                     CmdToEngine::Terminate => {
                         engine.stop();
                         break;
                     }
                 };
             }
-
-            thread::sleep(time::Duration::from_millis(500));
         }
     });
 
@@ -91,7 +93,6 @@ impl Engine {
         info!("Initialize engine");
         let mut engine = Engine {
             stop_loop: AtomicBool::new(false),
-            next_wakeup: None,
             data_base: DataBase::new(mode),
             user_states: HashMap::new(),
         };
@@ -111,8 +112,6 @@ impl Engine {
             self.user_states
                 .insert(uid as i32, result.next_state.unwrap());
         }
-        self.next_wakeup = self.data_base.get_nearest_wakeup();
-
         result.frontend_command
     }
 
@@ -133,7 +132,6 @@ impl Engine {
             self.user_states
                 .insert(uid as i32, result.next_state.unwrap());
         }
-        self.next_wakeup = self.data_base.get_nearest_wakeup();
         result.frontend_command
     }
 
@@ -171,32 +169,33 @@ impl Engine {
         self.data_base.get_user_chat_id_all()
     }
 
-    fn tick(&mut self) -> Option<CmdFromEngine> {
-        if self.next_wakeup.is_none() {
-            self.next_wakeup = self.data_base.get_nearest_wakeup();
-            return None;
-        }
-        let next_wakeup = self.next_wakeup.unwrap();
-
-        if now() >= next_wakeup {
-            self.next_wakeup = self.data_base.get_nearest_wakeup();
-            if let Some((command, uid)) = self.data_base.pop(next_wakeup) {
-                let event_text = match command {
-                    Command::OneTimeEvent(ev) => ev.event_text,
-                    Command::RepetitiveEvent(ev) => ev.event_text,
-                };
-                info!("Event time, text - <{}>", &event_text);
-                let cmd = FrontendCommand::keyboard(KeyboardCommand{
-                    action_type: "main".to_owned(),
-                    text: event_text,
-                });
-                return Some(CmdFromEngine{
-                    uid,
-                    to_msg: None,
-                    cmd_vec: vec![cmd],
-                });
+    fn tick(&mut self) -> Vec<CmdFromEngine> {
+        let mut result : Vec<CmdFromEngine> = Vec::new();
+        for ev in self.data_base.extract_events_happens_already(now()) {
+            let event_text = match &ev.command {
+                Command::OneTimeEvent(ev) => ev.event_text.clone(),
+                Command::RepetitiveEvent(ev) => ev.event_text.clone(),
             };
-        };
-        None
+            let cmd = FrontendCommand::keyboard(KeyboardCommand{
+                action_type: "main".to_owned(),
+                text: event_text,
+            });
+            result.push(CmdFromEngine{
+                uid: ev.uid,
+                to_msg: None,
+                cmd_vec: vec![cmd],
+            });
+        }
+        result
+    }
+
+    fn get_time_until_next_wakeup(&self) -> std::time::Duration {
+        if let Some(ts) = self.data_base.get_nearest_wakeup() {
+            ts.signed_duration_since(now()).to_std().unwrap_or(time::Duration::from_secs(0))
+        } else {
+            // If no current event, give some number. Big enough to not waste much cpu cycles,
+            // but small enough for not to miss event if there is some bug here...
+            time::Duration::from_secs(60)
+        }
     }
 }
