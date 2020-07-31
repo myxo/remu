@@ -66,7 +66,7 @@ pub fn engine_run(mode: DbMode) -> (mpsc::Sender<CmdToEngine>, mpsc::Receiver<Cm
                     },
 
                     CmdToEngine::KeyboardMessage {uid, msg_id, call_data, msg_text} => {
-                        let res = engine.handle_keyboard_responce(uid, &call_data, &msg_text);
+                        let res = engine.handle_keyboard_responce(uid, msg_id, &call_data, &msg_text);
                         if let Err(error) = tx_from_engine.send(CmdFromEngine{uid, to_msg: Some(msg_id), cmd_vec: res}) {
                             error!("Cannot send CmdFromEngine: {}", error);
                         }
@@ -104,7 +104,7 @@ impl Engine {
     }
 
     pub fn handle_text_message(&mut self, uid: i64, text_message: &str) -> Vec<FrontendCommand> {
-        info!("Handle text message : {}", text_message);
+        debug!("Handle text message : {}", text_message);
 
         let state = self.user_states.get(&(uid as i32)).expect("No user state!");
         let result = state.process(uid, text_message, &mut self.data_base);
@@ -118,15 +118,22 @@ impl Engine {
     pub fn handle_keyboard_responce(
         &mut self,
         uid: i64,
+        msg_id: i64,
         call_data: &str,
         msg_text: &str,
     ) -> Vec<FrontendCommand> {
-        info!("Handle Keyboard data : {}, text: {}", call_data, msg_text);
+        debug!("Handle Keyboard data : {}, text: {}", call_data, msg_text);
         let state = self.user_states.get(&(uid as i32)).unwrap();
+        let data = KeyboardEventData {
+            uid,
+            msg_id,
+            callback_data: call_data.to_owned(),
+            msg_text: msg_text.to_owned(),
+        };
 
-        let result = match common_process_keyboard(uid, call_data, msg_text, &mut self.data_base) {
+        let result = match common_process_keyboard(&data, &mut self.data_base) {
             Some(res) => res,
-            None => state.process_keyboard(uid, call_data, msg_text, &mut self.data_base),
+            None => state.process_keyboard(data, &mut self.data_base),
         };
         if result.next_state.is_some() {
             self.user_states

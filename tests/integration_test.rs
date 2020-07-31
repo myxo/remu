@@ -90,11 +90,6 @@ fn simple_message_and_after_5m_button() {
 }
 
 #[test]
-fn simple_message_ant_at_button() {
-    todo!();
-}
-
-#[test]
 fn simple_message_and_at_button() {
     set_mock_time(Some(Utc.timestamp(61, 0)));
 
@@ -110,9 +105,9 @@ fn simple_message_and_at_button() {
 
     case.send(r#"{"KeyboardMessage":{"uid":1,"msg_id":2796,"call_data":"calendar-day-2","msg_text":"Please, choose a date"}}"#);
 
-    case.expect(r#"{"uid":1,"to_msg":2796,"cmd_vec":[{"keyboard":{"action_type":"hour","text":"Ok, now write the time of event"}}]}"#);
+    case.expect(r#"{"uid":1,"to_msg":2796,"cmd_vec":[{"delete_message":2796},{"keyboard":{"action_type":"hour","text":"Ok, now write the time of event"}}]}"#);
     case.send(r#"{"KeyboardMessage":{"uid":1,"msg_id":2797,"call_data":"time_hour:10","msg_text":"Please, choose hour"}}"#);
-    case.expect(r#"{"uid":1,"to_msg":2797,"cmd_vec":[{"keyboard":{"action_type":"minute","text":"Ok, 10. Now choose minute"}}]}"#);
+    case.expect(r#"{"uid":1,"to_msg":2797,"cmd_vec":[{"delete_message":2797},{"keyboard":{"action_type":"minute","text":"Ok, 10. Now choose minute"}}]}"#);
     case.send(r#"{"KeyboardMessage":{"uid":1,"msg_id":2798,"call_data":"time_minute:00","msg_text":"Ok, 10. Now choose minute"}}"#);
     case.expect(r#"{"uid":1,"to_msg":2798,"cmd_vec":[{"send":{"text":"I'll remind you tomorrow at 10:00\ntest"}}]}"#);
 
@@ -168,13 +163,13 @@ fn at_next_mounth() {
     case.expect(r#"{"uid":1,"to_msg":2803,"cmd_vec":[{"calendar":{"action_type":"calendar","year":1970,"month":2,"tz":-3,"edit_cur_msg":true}}]}"#);
 
     case.send(r#"{"KeyboardMessage":{"uid":1,"msg_id":2803,"call_data":"calendar-day-1","msg_text":"Please, choose a date"}}"#);
-    case.expect(r#"{"uid":1,"to_msg":2803,"cmd_vec":[{"keyboard":{"action_type":"hour","text":"Ok, now write the time of event"}}]}"#);
+    case.expect(r#"{"uid":1,"to_msg":2803,"cmd_vec":[{"delete_message":2803},{"keyboard":{"action_type":"hour","text":"Ok, now write the time of event"}}]}"#);
 
     case.send(r#"{"KeyboardMessage":{"uid":1,"msg_id":2804,"call_data":"time_hour:10","msg_text":"Please, choose hour"}}"#);
-    case.expect(r#"{"uid":1,"to_msg":2804,"cmd_vec":[{"keyboard":{"action_type":"minute","text":"Ok, 10. Now choose minute"}}]}"#);
+    case.expect(r#"{"uid":1,"to_msg":2804,"cmd_vec":[{"delete_message":2804},{"keyboard":{"action_type":"minute","text":"Ok, 10. Now choose minute"}}]}"#);
 
     case.send(r#"{"KeyboardMessage":{"uid":1,"msg_id":2805,"call_data":"time_minute:00","msg_text":"Ok, 10. Now choose minute"}}"#);
-    case.expect(r#"{"uid":1,"to_msg":2805,"cmd_vec":[{"send":{"text":"Now write event message"}}]}"#);
+    case.expect(r#"{"uid":1,"to_msg":2805,"cmd_vec":[{"delete_message":2805},{"send":{"text":"Now write event message"}}]}"#);
     case.send(r#"{"TextMessage":{"uid":1,"msg_id":2832,"message":"test message"}}"#);
     case.expect(r#"{"uid":1,"to_msg":2832,"cmd_vec":[{"send":{"text":"I'll remind you February  1 at 10:00\ntest message"}}]}"#);
 

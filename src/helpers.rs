@@ -54,7 +54,7 @@ fn process_one_time_event_command(
 
     // delete newline char to write to log
     let tmp_string = str::replace(&return_string[..], "\n", " ");
-    info!(
+    debug!(
         "Successfully process command, return string - <{}>",
         tmp_string
     );
@@ -75,7 +75,7 @@ fn process_repetitive_event_command(
 
     // delete newline char to write to log
     let tmp_string = str::replace(&return_string[..], "\n", " ");
-    info!(
+    debug!(
         "Successfully process command, return string - <{}>",
         tmp_string
     );

@@ -64,10 +64,10 @@ def callback_inline(call):
     msg_id = call.message.message_id
     # This is a mandatory call. Mean we get query and processing it
     bot.answer_callback_query(call.id, text="")
-    engine.log_debug("Processing keyboard callback. Call.data = %s."%(call.data))
     if call.message:
-        command = engine.handle_keyboard_responce(id, msg_id, call.data, call.message.text)
-        # handle_backend_command(id, msg_id, command)
+        engine.handle_keyboard_responce(id, msg_id, call.data, call.message.text)
+    else:
+        engine.log_error("Processing keyboard callback with call.data = %s, but call.message is null"%(call.data))
 
 def get_key(d):
     return list(d.keys())[0]
@@ -87,7 +87,7 @@ def handle_backend_command(command_str):
             handle_calendar_call(uid, msg_id, command['calendar'])
 
         elif get_key(command) == 'delete_message':
-            bot.delete_message(chat_id=uid, message_id=msg_id)
+            bot.delete_message(chat_id=uid, message_id=command['delete_message'])
         
         elif get_key(command) == 'delete_keyboard':
             bot.edit_message_reply_markup(chat_id=uid, message_id=msg_id)
@@ -119,13 +119,13 @@ def handle_calendar_call(chat_id, msg_id, command):
 
 
 def handle_hour_keyboard(chat_id, prev_msg_id):
-    bot.delete_message(chat_id, prev_msg_id)
+    # bot.delete_message(chat_id, prev_msg_id)
 
     markup = keyboards.hour()
     bot.send_message(chat_id, "Please, choose hour", reply_markup=markup)
 
 def handle_minutes_keyboard(chat_id, prev_msg_id, text):
-    bot.delete_message(chat_id, prev_msg_id)
+    # bot.delete_message(chat_id, prev_msg_id)
 
     markup = keyboards.minutes()
     keyboard_message = bot.send_message(chat_id, text, reply_markup=markup)

@@ -2,7 +2,7 @@ extern crate chrono;
 
 use chrono::prelude::*;
 use regex::{Captures, Regex};
-use crate::time::now;
+use crate::time::{now, set_mock_time};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Command {
@@ -247,6 +247,7 @@ mod tests {
         }
 
         {
+            set_mock_time(Some(Utc.timestamp(61, 0)));
             let command = String::from("24 at 18.30");
             let text = "some text";
             let command_text = command + " " + text;
@@ -262,6 +263,7 @@ mod tests {
                 }
                 _ => panic!("Wrong command type"),
             };
+            set_mock_time(None);
         }
         {
             let command = String::from("at 18.30");
