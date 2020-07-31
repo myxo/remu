@@ -86,6 +86,8 @@ struct AtTimeText {
     year: i32,
     month: i32,
     day: i32,
+    hour: i32,
+    minute: i32,
 }
 
 #[derive(Clone, Debug)]
@@ -409,24 +411,37 @@ impl UserState for AtTimeMinute {
         if callback_data.starts_with("time_minute:") {
             let minute = callback_data[12..].parse::<i32>().unwrap();
 
-            let ev_text = self.ev_text.as_ref().cloned();
-            // Make result command
-            let result_command = format!(
-                "{}-{}-{} at {}.{} {}",
-                self.day,
-                self.month,
-                self.year,
-                self.hour,
-                minute,
-                ev_text.unwrap()
-            );
+            if let Some(text) = self.ev_text.as_ref().cloned() {
+                // Make result command
+                let result_command = format!(
+                    "{}-{}-{} at {}.{} {}",
+                    self.day,
+                    self.month,
+                    self.year,
+                    self.hour,
+                    minute,
+                    text
+                );
 
-            let ret_text = process_text_command(id, &result_command, db).unwrap();
-            let command = SendMessageCommand { text: ret_text };
-            return ProcessResult {
-                frontend_command: vec![FrontendCommand::send(command)],
-                next_state: Some(Box::new(ReadyToProcess {})),
-            };
+                let ret_text = process_text_command(id, &result_command, db).unwrap();
+                let command = SendMessageCommand { text: ret_text };
+                return ProcessResult {
+                    frontend_command: vec![FrontendCommand::send(command)],
+                    next_state: Some(Box::new(ReadyToProcess {})),
+                };
+            } else {
+                let command = SendMessageCommand { text: "Now write event message".to_owned() };
+                return ProcessResult {
+                    frontend_command: vec![FrontendCommand::send(command)],
+                    next_state: Some(Box::new(AtTimeText {
+                        year: self.year,
+                        month: self.month,
+                        day: self.day,
+                        hour: self.hour,
+                        minute,
+                    })),
+                };
+            }
 
             // let command = KeyboardCommand {
             //     action_type: "minute".to_owned(),
@@ -454,8 +469,24 @@ impl UserState for AtTimeMinute {
 }
 
 impl UserState for AtTimeText {
-    fn process(&self, _id: i64, _input: &str, _db: &mut DataBase) -> ProcessResult {
-        panic!("Default UserState::process")
+    fn process(&self, id: i64, input: &str, db: &mut DataBase) -> ProcessResult {
+
+        let result_command = format!(
+            "{}-{}-{} at {}.{} {}",
+            self.day,
+            self.month,
+            self.year,
+            self.hour,
+            self.minute,
+            input
+        );
+
+        let ret_text = process_text_command(id, &result_command, db).unwrap();
+        let command = SendMessageCommand { text: ret_text };
+        return ProcessResult {
+            frontend_command: vec![FrontendCommand::send(command)],
+            next_state: Some(Box::new(ReadyToProcess {})),
+        };
     }
 
     fn process_keyboard(
