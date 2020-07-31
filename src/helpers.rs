@@ -1,8 +1,7 @@
-use chrono;
-use chrono::prelude::*;
 use crate::command::*;
 use crate::database::DataBase;
 use crate::time::now;
+use chrono::prelude::*;
 
 // TODO: make test
 pub fn format_return_message_header(event_time: &DateTime<Utc>, tz: i32) -> String {
@@ -32,20 +31,12 @@ pub fn format_return_message_header(event_time: &DateTime<Utc>, tz: i32) -> Stri
 pub fn process_text_command(uid: i64, text_message: &str, db: &mut DataBase) -> Option<String> {
     let tz = db.get_user_timezone(uid);
     match parse_command(String::from(text_message), tz)? {
-        Command::OneTimeEvent(ev) => {
-            Some(process_one_time_event_command(uid, ev, db))
-        }
-        Command::RepetitiveEvent(ev) => {
-            Some(process_repetitive_event_command(uid, ev, db))
-        }
+        Command::OneTimeEvent(ev) => Some(process_one_time_event_command(uid, ev, db)),
+        Command::RepetitiveEvent(ev) => Some(process_repetitive_event_command(uid, ev, db)),
     }
 }
 
-fn process_one_time_event_command(
-    uid: i64,
-    c: OneTimeEventImpl,
-    db: &mut DataBase,
-) -> String {
+fn process_one_time_event_command(uid: i64, c: OneTimeEventImpl, db: &mut DataBase) -> String {
     let tz = db.get_user_timezone(uid);
     let mut return_string = format_return_message_header(&c.event_time, tz);
     return_string.push('\n');
@@ -62,11 +53,7 @@ fn process_one_time_event_command(
     return_string
 }
 
-fn process_repetitive_event_command(
-    uid: i64,
-    c: RepetitiveEventImpl,
-    db: &mut DataBase,
-) -> String {
+fn process_repetitive_event_command(uid: i64, c: RepetitiveEventImpl, db: &mut DataBase) -> String {
     let tz = db.get_user_timezone(uid);
     let mut return_string = format_return_message_header(&c.event_start_time, tz);
     return_string.push('\n');

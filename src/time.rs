@@ -13,8 +13,8 @@ pub fn set_mock_time(_time: Option<DateTime<Utc>>) {
 #[cfg(feature = "mock-time")]
 pub mod mock_time {
     use super::*;
-    use std::sync::Mutex;
     use lazy_static::lazy_static;
+    use std::sync::Mutex;
 
     lazy_static! {
         static ref MOCK_TIME: Mutex<Option<DateTime<Utc>>> = Mutex::new(None);

@@ -1,8 +1,8 @@
 use crate::command::{Command, OneTimeEventImpl, RepetitiveEventImpl};
 use crate::sql_query as sql_q;
 use crate::time::now;
-use chrono::{Utc};
 use chrono::prelude::*;
+use chrono::Utc;
 use rusqlite::{params, Connection};
 
 pub struct DataBase {
@@ -14,7 +14,7 @@ pub enum DbMode {
     Filesystem,
 }
 
-pub struct UserInfo <'a>{
+pub struct UserInfo<'a> {
     pub uid: i64,
     pub name: &'a str,
     pub chat_id: i64,
@@ -25,14 +25,16 @@ pub struct UserInfo <'a>{
 
 #[derive(Debug, PartialEq)]
 pub struct RetrieveEventsResult {
-    pub command : Command,
+    pub command: Command,
     pub uid: i64,
 }
 
 impl DataBase {
     pub fn new(mode: DbMode) -> DataBase {
         let conn = match mode {
-            DbMode::Filesystem => Connection::open("database.db").expect("Cannot connect to sqlite"),
+            DbMode::Filesystem => {
+                Connection::open("database.db").expect("Cannot connect to sqlite")
+            }
             DbMode::InMemory => Connection::open_in_memory().expect("Cannot open db in memory"),
         };
         conn.execute(sql_q::CREATE_USER_TABLE, params![])
@@ -46,13 +48,17 @@ impl DataBase {
         DataBase { conn }
     }
 
-    pub fn add_user(
-        &mut self,
-        info : UserInfo
-    ) -> Result<(), String> {
+    pub fn add_user(&mut self, info: UserInfo) -> Result<(), String> {
         let res = self.conn.execute(
             sql_q::INSERT_USER,
-            params![&info.uid, &info.name, &info.first_name, &info.last_name, &info.chat_id, &info.tz],
+            params![
+                &info.uid,
+                &info.name,
+                &info.first_name,
+                &info.last_name,
+                &info.chat_id,
+                &info.tz
+            ],
         );
         match res {
             Ok(_) => Ok(()),
@@ -67,9 +73,12 @@ impl DataBase {
         }
     }
 
-    pub fn extract_events_happens_already(&mut self, time: DateTime<Utc>) -> Vec<RetrieveEventsResult> {
-        let mut result : Vec<RetrieveEventsResult> = Vec::new();
-        let mut parent_vec : Vec<i64> = Vec::new();
+    pub fn extract_events_happens_already(
+        &mut self,
+        time: DateTime<Utc>,
+    ) -> Vec<RetrieveEventsResult> {
+        let mut result: Vec<RetrieveEventsResult> = Vec::new();
+        let mut parent_vec: Vec<i64> = Vec::new();
         {
             let mut stmt = self
                 .conn
@@ -88,7 +97,7 @@ impl DataBase {
                     .expect("Cannot remove from one_time_event table");
                 let parent_id = row.get(3).unwrap();
                 let uid = row.get(4).unwrap();
-                result.push(RetrieveEventsResult{ command, uid });
+                result.push(RetrieveEventsResult { command, uid });
                 parent_vec.push(parent_id);
             }
         }
@@ -116,7 +125,8 @@ impl DataBase {
         self.conn
             .query_row(sql_q::MIN_TIMESTAMP_FROM_ACTIVE_EVENT, params![], |row| {
                 row.get(0).map(|expr| Utc.timestamp(expr, 0))
-            }).ok()
+            })
+            .ok()
     }
 
     pub fn get_all_active_events(&self, uid: i64) -> Vec<Command> {
@@ -271,7 +281,6 @@ fn create_nearest_active_event_from_repetitive(
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -304,7 +313,6 @@ mod tests {
         assert_eq!(db.get_user_timezone(2), -2);
         assert_eq!(db.get_user_chat_id_all(), vec!(123, 1234));
     }
-
 
     // #[test]
     // fn put_one_time_event_negative() {
@@ -369,10 +377,16 @@ mod tests {
         db.put(1, event1.clone());
         db.put(1, event2.clone());
         db.put(1, event3.clone());
-        
+
         let expect = vec![
-            RetrieveEventsResult{command: event1, uid: 1},
-            RetrieveEventsResult{command: event2, uid: 1}
+            RetrieveEventsResult {
+                command: event1,
+                uid: 1,
+            },
+            RetrieveEventsResult {
+                command: event2,
+                uid: 1,
+            },
         ];
 
         let events = db.extract_events_happens_already(Utc.timestamp(64, 0));

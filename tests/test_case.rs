@@ -1,5 +1,5 @@
 use remu_backend::database::DbMode;
-use remu_backend::engine::{CmdToEngine, CmdFromEngine, engine_run};
+use remu_backend::engine::{engine_run, CmdFromEngine, CmdToEngine};
 use std::sync::mpsc;
 
 #[derive(Copy, Clone)]
@@ -10,17 +10,16 @@ enum Cmd {
 }
 
 pub struct TestCase {
-    cmd_list : Vec<Cmd>,
+    cmd_list: Vec<Cmd>,
     tx_to_engine: mpsc::Sender<CmdToEngine>,
     rx_out_engine: mpsc::Receiver<CmdFromEngine>,
 }
 
-
 impl TestCase {
     pub fn create() -> TestCase {
         let (tx_to_engine, rx_out_engine) = engine_run(DbMode::InMemory);
-        let mut res = TestCase { 
-            cmd_list : Vec::new(), 
+        let mut res = TestCase {
+            cmd_list: Vec::new(),
             tx_to_engine,
             rx_out_engine,
         };
@@ -36,22 +35,26 @@ impl TestCase {
         self.add(Cmd::Expect(json));
     }
 
-    pub fn advance_time(&mut self, seconds : i64) {
+    pub fn advance_time(&mut self, seconds: i64) {
         self.add(Cmd::TimeAdvance(seconds));
     }
 
     pub fn run(&self) {
         for cmd in &self.cmd_list {
             match cmd {
-                Cmd::Send(json) => self.handle_send(serde_json::from_str(json).expect("wrong json")),
-                Cmd::Expect(json) => self.handle_expect(serde_json::from_str(json).expect("wrong json")),
+                Cmd::Send(json) => {
+                    self.handle_send(serde_json::from_str(json).expect("wrong json"))
+                }
+                Cmd::Expect(json) => {
+                    self.handle_expect(serde_json::from_str(json).expect("wrong json"))
+                }
                 Cmd::TimeAdvance(seconds) => self.handle_advance_time(*seconds),
             }
         }
     }
-    
+
     fn add(&mut self, cmd: Cmd) {
-        self.cmd_list.push( cmd );
+        self.cmd_list.push(cmd);
     }
 
     fn handle_send(&self, cmd: CmdToEngine) {
@@ -59,18 +62,26 @@ impl TestCase {
     }
 
     fn handle_expect(&self, expect: CmdFromEngine) {
-        let response = self.rx_out_engine.recv().expect("Response from engine is Error");
+        let response = self
+            .rx_out_engine
+            .recv()
+            .expect("Response from engine is Error");
         assert_eq!(response, expect);
     }
 
     fn handle_advance_time(&self, seconds: i64) {
         let cmd_json = format!("{{\"AdvanceTime\": {}}}", seconds);
-        assert!(self.tx_to_engine.send(serde_json::from_str(&cmd_json).expect("wrong json")).is_ok());
+        assert!(self
+            .tx_to_engine
+            .send(serde_json::from_str(&cmd_json).expect("wrong json"))
+            .is_ok());
     }
 }
 
 impl Drop for TestCase {
     fn drop(&mut self) {
-        self.tx_to_engine.send(CmdToEngine::Terminate).expect("Terminate cmd failed");
+        self.tx_to_engine
+            .send(CmdToEngine::Terminate)
+            .expect("Terminate cmd failed");
     }
 }

@@ -1,10 +1,9 @@
-use chrono;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::thread;
 use std::time;
-use serde::{Deserialize, Serialize};
 
 use crate::command::*;
 use crate::database::{DataBase, DbMode, UserInfo};
@@ -13,9 +12,25 @@ use crate::time::{now, set_mock_time};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum CmdToEngine {
-    AddUser {uid: i64, username: String, chat_id: i64, first_name: String, last_name: String, tz: i32},
-    TextMessage {uid: i64, msg_id: i64, message: String},
-    KeyboardMessage {uid: i64, msg_id: i64, call_data: String, msg_text: String},
+    AddUser {
+        uid: i64,
+        username: String,
+        chat_id: i64,
+        first_name: String,
+        last_name: String,
+        tz: i32,
+    },
+    TextMessage {
+        uid: i64,
+        msg_id: i64,
+        message: String,
+    },
+    KeyboardMessage {
+        uid: i64,
+        msg_id: i64,
+        call_data: String,
+        msg_text: String,
+    },
     AdvanceTime(i64), // used in test enviroment so engine known that time has been advanced
     Terminate,
 }
@@ -38,8 +53,7 @@ pub struct ProcessResult {
     pub next_state: Option<Box<dyn UserState>>,
 }
 
-pub fn engine_run(mode: DbMode) -> (mpsc::Sender<CmdToEngine>, mpsc::Receiver<CmdFromEngine>) 
-{
+pub fn engine_run(mode: DbMode) -> (mpsc::Sender<CmdToEngine>, mpsc::Receiver<CmdFromEngine>) {
     let (tx_to_engine, rx_in_engine) = mpsc::channel();
     let (tx_from_engine, rx_out_engine) = mpsc::channel();
     thread::spawn(move || {
@@ -51,23 +65,48 @@ pub fn engine_run(mode: DbMode) -> (mpsc::Sender<CmdToEngine>, mpsc::Receiver<Cm
             }
 
             let dt = engine.get_time_until_next_wakeup();
-            if let Ok(message) = rx_in_engine.recv_timeout(dt){
+            if let Ok(message) = rx_in_engine.recv_timeout(dt) {
                 info!("SEND: {}", serde_json::to_string(&message).unwrap());
                 match message {
-                    CmdToEngine::AddUser {uid, username, chat_id, first_name, last_name, tz} => { 
+                    CmdToEngine::AddUser {
+                        uid,
+                        username,
+                        chat_id,
+                        first_name,
+                        last_name,
+                        tz,
+                    } => {
                         engine.add_user(uid, &username, chat_id, &first_name, &last_name, tz);
-                    },
+                    }
 
-                    CmdToEngine::TextMessage {uid, msg_id, message} => { 
+                    CmdToEngine::TextMessage {
+                        uid,
+                        msg_id,
+                        message,
+                    } => {
                         let res = engine.handle_text_message(uid, &message);
-                        if let Err(error) = tx_from_engine.send(CmdFromEngine{uid, to_msg: Some(msg_id), cmd_vec: res}) {
+                        if let Err(error) = tx_from_engine.send(CmdFromEngine {
+                            uid,
+                            to_msg: Some(msg_id),
+                            cmd_vec: res,
+                        }) {
                             error!("Cannot send CmdFromEngine: {}", error);
                         }
-                    },
+                    }
 
-                    CmdToEngine::KeyboardMessage {uid, msg_id, call_data, msg_text} => {
-                        let res = engine.handle_keyboard_responce(uid, msg_id, &call_data, &msg_text);
-                        if let Err(error) = tx_from_engine.send(CmdFromEngine{uid, to_msg: Some(msg_id), cmd_vec: res}) {
+                    CmdToEngine::KeyboardMessage {
+                        uid,
+                        msg_id,
+                        call_data,
+                        msg_text,
+                    } => {
+                        let res =
+                            engine.handle_keyboard_responce(uid, msg_id, &call_data, &msg_text);
+                        if let Err(error) = tx_from_engine.send(CmdFromEngine {
+                            uid,
+                            to_msg: Some(msg_id),
+                            cmd_vec: res,
+                        }) {
                             error!("Cannot send CmdFromEngine: {}", error);
                         }
                     }
@@ -155,19 +194,24 @@ impl Engine {
         first_name: &str,
         last_name: &str,
         tz: i32,
-    ){
+    ) {
         info!("Add new user id - {}, username - {}", uid, username);
-        let user_info = UserInfo{uid, name:username, chat_id, first_name, last_name, tz};
+        let user_info = UserInfo {
+            uid,
+            name: username,
+            chat_id,
+            first_name,
+            last_name,
+            tz,
+        };
         match self.data_base.add_user(user_info) {
             Ok(_) => {
-                self.user_states.insert(uid as i32, Box::new(ReadyToProcess {})); 
-            },
+                self.user_states
+                    .insert(uid as i32, Box::new(ReadyToProcess {}));
+            }
             Err(err_msg) => error!(
-                    "Can't insert user in db. UID - <{}>, username - <{}>, chat_id - <{}>. Reason: {}",
-                    uid,
-                    username,
-                    chat_id,
-                    err_msg
+                "Can't insert user in db. UID - <{}>, username - <{}>, chat_id - <{}>. Reason: {}",
+                uid, username, chat_id, err_msg
             ),
         };
     }
@@ -177,17 +221,17 @@ impl Engine {
     }
 
     fn tick(&mut self) -> Vec<CmdFromEngine> {
-        let mut result : Vec<CmdFromEngine> = Vec::new();
+        let mut result: Vec<CmdFromEngine> = Vec::new();
         for ev in self.data_base.extract_events_happens_already(now()) {
             let event_text = match &ev.command {
                 Command::OneTimeEvent(ev) => ev.event_text.clone(),
                 Command::RepetitiveEvent(ev) => ev.event_text.clone(),
             };
-            let cmd = FrontendCommand::keyboard(KeyboardCommand{
+            let cmd = FrontendCommand::keyboard(KeyboardCommand {
                 action_type: "main".to_owned(),
                 text: event_text,
             });
-            result.push(CmdFromEngine{
+            result.push(CmdFromEngine {
                 uid: ev.uid,
                 to_msg: None,
                 cmd_vec: vec![cmd],
@@ -198,7 +242,9 @@ impl Engine {
 
     fn get_time_until_next_wakeup(&self) -> std::time::Duration {
         if let Some(ts) = self.data_base.get_nearest_wakeup() {
-            ts.signed_duration_since(now()).to_std().unwrap_or(time::Duration::from_secs(0))
+            ts.signed_duration_since(now())
+                .to_std()
+                .unwrap_or(time::Duration::from_secs(0))
         } else {
             // If no current event, give some number. Big enough to not waste much cpu cycles,
             // but small enough for not to miss event if there is some bug here...

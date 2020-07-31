@@ -1,8 +1,8 @@
 extern crate chrono;
 
+use crate::time::{now, set_mock_time};
 use chrono::prelude::*;
 use regex::{Captures, Regex};
-use crate::time::{now, set_mock_time};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Command {
@@ -28,8 +28,7 @@ const MOMENT_DAY_REGEX: &str =
 
 const MOMENT_TIME_REGEX: &str = r"(?P<m_hour>[\d]+)(?:[.|:](?P<m_minute>[\d]+))?";
 
-const DURATION_REGEX: &str =
-    r"(:?(?P<d_day>[\d]*)[D|d|Д|д])?(:?(?P<d_hour>[\d]*)[H|h|Ч|ч])?(:?(?P<d_minute>[\d]*)[M|m|М|м])?(:?(?P<d_second>[\d]*)[S|s|С|с])?";
+const DURATION_REGEX: &str = r"(:?(?P<d_day>[\d]*)[D|d|Д|д])?(:?(?P<d_hour>[\d]*)[H|h|Ч|ч])?(:?(?P<d_minute>[\d]*)[M|m|М|м])?(:?(?P<d_second>[\d]*)[S|s|С|с])?";
 
 pub fn parse_command(command_line: String, user_timezone: i32) -> Option<Command> {
     let command_line = String::from(command_line.trim());
@@ -97,12 +96,7 @@ fn try_parse_rep(command_line: &String, user_timezone: i32) -> Option<Command> {
     );
     let reg = Regex::new(&reg[..]).unwrap();
 
-    let capture = reg.captures(command_line);
-    if capture.is_none() {
-        return None;
-    }
-    let capture = capture.unwrap();
-
+    let capture = reg.captures(command_line)?;
     let text = capture.name("main_text").unwrap().as_str();
     let time = get_datetime_from_capture(&capture, user_timezone);
     let dt = get_duration_from_capture(&capture);
