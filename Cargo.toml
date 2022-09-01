@@ -1,8 +1,8 @@
 [package]
 name = "remu"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Klimov Nikolay <klimov.ns@mail.ru>"]
-edition = "2018"
+edition = "2021"
 
 [features]
 mock-time = []
@@ -13,14 +13,14 @@ crate-type = ["rlib", "dylib"]
 
 [dependencies]
 chrono = "0.4"
-regex = "1"
+regex = "1.6"
 log = "0.4"
-fern = "0.5"# log
-rusqlite = "0.21"
+fern = "0.6"# log
+rusqlite = "0.28"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 lazy_static = "1.4.0"
 
 [dependencies.cpython]
-version = "0.5"
+version = "0.7"
 features = ["extension-module"]
