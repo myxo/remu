@@ -23,7 +23,7 @@ static mut TX_TO_ENGINE: Option<mpsc::Sender<CmdToEngine>> = None;
 
 #[rustfmt::skip::macros(py_module_initializer)]
 #[rustfmt::skip::macros(py_fn)]
-py_module_initializer!(libremu_backend, |py, m| 
+py_module_initializer!(libremu_backend, |py, m|
     {
         m.add(py, "initialize", py_fn!(py, initialize(verbose: bool, callback: PyObject)))?;
         m.add(py, "stop", py_fn!(py, stop()))?;
@@ -67,11 +67,9 @@ fn initialize(_py: Python, verbose: bool, callback: PyObject) -> PyResult<bool> 
 
 fn stop(_py: Python) -> PyResult<bool> {
     unsafe {
-        TX_TO_ENGINE
-            .as_mut()
-            .unwrap()
-            .send(CmdToEngine::Terminate)
-            .unwrap();
+        if let Err(error) = TX_TO_ENGINE.as_mut().unwrap().send(CmdToEngine::Terminate) {
+            error!("Can't send stop signal to engine: {}", error);
+        }
     }
     Ok(true)
 }
@@ -140,6 +138,8 @@ fn handle_keyboard_responce(
 }
 
 fn engine_callback(text: String) {
+    // SAFETY: engine is single threaded, so cannot call CALLBACK from different threads.
+    // Since GIL is locked for callback, client side should be OK too.
     unsafe {
         if CALLBACK.is_some() {
             let gil = Python::acquire_gil();

@@ -7,6 +7,7 @@ enum Cmd {
     Send(&'static str),
     Expect(&'static str),
     TimeAdvance(i64),
+    SkipExpect,
 }
 
 pub struct TestCase {
@@ -39,6 +40,10 @@ impl TestCase {
         self.add(Cmd::TimeAdvance(seconds));
     }
 
+    pub fn skip_one(&mut self) {
+        self.add(Cmd::SkipExpect);
+    }
+
     pub fn run(&self) {
         for cmd in &self.cmd_list {
             match cmd {
@@ -49,6 +54,7 @@ impl TestCase {
                     self.handle_expect(serde_json::from_str(json).expect("wrong json"))
                 }
                 Cmd::TimeAdvance(seconds) => self.handle_advance_time(*seconds),
+                Cmd::SkipExpect => self.handle_skip(),
             }
         }
     }
@@ -75,6 +81,10 @@ impl TestCase {
             .tx_to_engine
             .send(serde_json::from_str(&cmd_json).expect("wrong json"))
             .is_ok());
+    }
+
+    fn handle_skip(&self) {
+        self.rx_out_engine.recv().expect("recv return error");
     }
 }
 

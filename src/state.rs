@@ -45,8 +45,14 @@ pub struct KeyboardEventData {
     pub msg_text: String,
 }
 
+pub struct TextEventData {
+    pub uid: i64,
+    pub msg_id: i64,
+    pub input: String,
+}
+
 pub trait UserState {
-    fn process(&self, _id: i64, _input: &str, _db: &mut DataBase) -> ProcessResult {
+    fn process(&self, _data: TextEventData, _db: &mut DataBase) -> ProcessResult {
         panic!("Default UserState::process")
     }
 
@@ -133,10 +139,9 @@ impl ReadyToProcess {
 }
 
 impl UserState for ReadyToProcess {
-    fn process(&self, id: i64, input: &str, db: &mut DataBase) -> ProcessResult {
-        debug!("ReadyToProcess::process, input: {}", input);
-        if !input.starts_with('/') {
-            if let Some(ret_text) = process_text_command(id, input, db) {
+    fn process(&self, data: TextEventData, db: &mut DataBase) -> ProcessResult {
+        if !data.input.starts_with('/') {
+            if let Some(ret_text) = process_text_command(data.uid, &data.input, db) {
                 let command = SendMessageCommand { text: ret_text };
                 return ProcessResult {
                     frontend_command: vec![FrontendCommand::send(command)],
@@ -145,7 +150,7 @@ impl UserState for ReadyToProcess {
             } else {
                 let command = KeyboardCommand {
                     action_type: "main".to_owned(),
-                    text: input.to_string(),
+                    text: data.input.to_string(),
                 };
                 return ProcessResult {
                     frontend_command: vec![FrontendCommand::keyboard(command)],
@@ -153,7 +158,7 @@ impl UserState for ReadyToProcess {
                 };
             }
         }
-        match input {
+        match data.input.as_ref() {
             "/help more" => {
                 let command = SendMessageCommand {
                     text: "Detailed help message".to_owned(),
@@ -175,7 +180,7 @@ impl UserState for ReadyToProcess {
             }
 
             "/list" => {
-                let list = get_active_event_list(id, db);
+                let list = get_active_event_list(data.uid, db);
                 let ret_text = if list.is_empty() {
                     "No current active event".to_owned()
                 } else {
@@ -192,12 +197,10 @@ impl UserState for ReadyToProcess {
                 }
             }
 
-            "/at" => {
-                self.start_calendar(id, input, None {}, db)
-            }
+            "/at" => self.start_calendar(data.uid, &data.input, None {}, db),
 
             "/delete_rep" => {
-                let (list_str, list_id) = get_rep_event_list(id, db);
+                let (list_str, list_id) = get_rep_event_list(data.uid, db);
                 if list_str.is_empty() {
                     let command = SendMessageCommand {
                         text: "No current rep event".to_owned(),
@@ -218,7 +221,7 @@ impl UserState for ReadyToProcess {
 
             _ => {
                 let command = SendMessageCommand {
-                    text: format!("Unknown command: {}", input),
+                    text: format!("Unknown command: {}", data.input),
                 };
                 ProcessResult {
                     frontend_command: vec![FrontendCommand::send(command)],
@@ -248,20 +251,31 @@ impl UserState for ReadyToProcess {
                     ev_text: data.msg_text,
                 })),
             };
-        }
+        } else {
+            let cmd_option = data.callback_data + " " + &data.msg_text;
 
-        let command = SendMessageCommand {
-            text: "baka".to_owned(),
-        };
-        ProcessResult {
-            frontend_command: vec![FrontendCommand::send(command)],
-            next_state: Some(Box::new(ReadyToProcess {})),
+            if let Some(ret_text) = process_text_command(data.uid, &cmd_option, db) {
+                let ret_text = format!("Resulting command:\n{}\n{}", cmd_option, ret_text);
+                let command = SendMessageCommand { text: ret_text };
+                return ProcessResult {
+                    frontend_command: vec![FrontendCommand::send(command)],
+                    next_state: Some(Box::new(ReadyToProcess {})),
+                };
+            } else {
+                let command = SendMessageCommand {
+                    text: "baka".to_string(),
+                };
+                return ProcessResult {
+                    frontend_command: vec![FrontendCommand::send(command)],
+                    next_state: Some(Box::new(ReadyToProcess {})),
+                };
+            }
         }
     }
 }
 
 impl UserState for AtCalendar {
-    fn process(&self, _id: i64, _input: &str, _db: &mut DataBase) -> ProcessResult {
+    fn process(&self, _data: TextEventData, _db: &mut DataBase) -> ProcessResult {
         panic!("Default UserState::process")
     }
 
@@ -316,17 +330,18 @@ impl UserState for AtCalendar {
             };
         } else if data.callback_data == "today" || data.callback_data == "tomorrow" {
             // TODO: bot.send_message(chat_id, 'Ok, ' + date.strftime(r'%b %d') + '. Now write the time of event.')
-            let command = KeyboardCommand {
+            let keyboard_cmd = FrontendCommand::keyboard(KeyboardCommand {
                 action_type: "hour".to_owned(),
                 text: "Ok, now write the time of event".to_string(),
-            };
+            });
+            let delete_cmd = FrontendCommand::delete_message(data.msg_id);
             let now = if data.callback_data == "today" {
                 now()
             } else {
                 now() + chrono::Duration::days(1)
             };
             return ProcessResult {
-                frontend_command: vec![FrontendCommand::keyboard(command)],
+                frontend_command: vec![delete_cmd, keyboard_cmd],
                 next_state: Some(Box::new(AtTimeHour {
                     year: now.year(),
                     month: now.month() as i32,
@@ -340,31 +355,23 @@ impl UserState for AtCalendar {
                 next_state: Some(Box::new(ReadyToProcess {})),
             };
         }
-        let command = SendMessageCommand {
-            text: "Baka!".to_string(),
-        };
+        error!("Incorrect callback data format: {}", data.callback_data);
         ProcessResult {
-            frontend_command: vec![FrontendCommand::send(command)],
+            frontend_command: vec![FrontendCommand::delete_message(data.msg_id)],
             next_state: Some(Box::new(ReadyToProcess {})),
         }
     }
 }
 
-impl UserState for AtTimeHour {
-    fn process(&self, _id: i64, _input: &str, _db: &mut DataBase) -> ProcessResult {
-        panic!("Default UserState::process")
-    }
-
-    fn process_keyboard(&self, data: KeyboardEventData, _db: &mut DataBase) -> ProcessResult {
-        if data.callback_data.starts_with("time_hour:") {
-            let hour = data.callback_data[10..].parse::<i32>().unwrap();
-            let del_cmd = FrontendCommand::delete_message(data.msg_id);
+impl AtTimeHour {
+    fn proceed_next_stage(&self, hour : i32, msg_id: i64) -> ProcessResult {
+        let del_cmd = FrontendCommand::delete_message(msg_id);
             let keyboard_command = FrontendCommand::keyboard(KeyboardCommand {
                 action_type: "minute".to_owned(),
                 text: format!("Ok, {}. Now choose minute", hour),
             });
 
-            return ProcessResult {
+            ProcessResult {
                 frontend_command: vec![del_cmd, keyboard_command],
                 next_state: Some(Box::new(AtTimeMinute {
                     year: self.year,
@@ -373,90 +380,116 @@ impl UserState for AtTimeHour {
                     hour,
                     ev_text: self.ev_text.as_ref().cloned(),
                 })),
+            }
+    }
+}
+
+impl UserState for AtTimeHour {
+    fn process(&self, data: TextEventData, _db: &mut DataBase) -> ProcessResult {
+        if let Ok(hour) = data.input.parse::<i32>() {
+            self.proceed_next_stage(hour, 0)
+        } else {
+            let command = SendMessageCommand {
+                text: "Incorrect format, expect number of hours".to_string(),
             };
+            ProcessResult {
+                frontend_command: vec![FrontendCommand::send(command)],
+                next_state: Some(Box::new(ReadyToProcess {})),
+            }
         }
-        let command = SendMessageCommand {
-            text: "Baka!".to_string(),
-        };
-        ProcessResult {
-            frontend_command: vec![FrontendCommand::send(command)],
-            next_state: Some(Box::new(ReadyToProcess {})),
+        
+    }
+
+    fn process_keyboard(&self, data: KeyboardEventData, _db: &mut DataBase) -> ProcessResult {
+        if data.callback_data.starts_with("time_hour:") {
+            let hour = data.callback_data[10..].parse::<i32>().unwrap();
+            self.proceed_next_stage(hour, data.msg_id)
+        } else {
+            let command = SendMessageCommand {
+                text: "Incorrect keyboard format".to_string(),
+            };
+            ProcessResult {
+                frontend_command: vec![FrontendCommand::send(command)],
+                next_state: Some(Box::new(ReadyToProcess {})),
+            }
         }
     }
 }
 
+impl AtTimeMinute {
+    fn proceed_next_stage(&self, minute : i32, uid: i64, msg_id: i64, db: &mut DataBase) -> ProcessResult {
+        if let Some(text) = self.ev_text.as_ref().cloned() {
+            // Make result command
+            let result_command = format!(
+                "{}-{}-{} at {}.{} {}",
+                self.day, self.month, self.year, self.hour, minute, text
+            );
+
+            let ret_text = process_text_command(uid, &result_command, db).unwrap();
+            let command = SendMessageCommand { text: ret_text };
+            return ProcessResult {
+                frontend_command: vec![FrontendCommand::send(command)],
+                next_state: Some(Box::new(ReadyToProcess {})),
+            };
+        } else {
+            let send_command = FrontendCommand::send(SendMessageCommand {
+                text: "Now write event message".to_owned(),
+            });
+            let delete_command = FrontendCommand::delete_message(msg_id);
+            return ProcessResult {
+                frontend_command: vec![delete_command, send_command],
+                next_state: Some(Box::new(AtTimeText {
+                    year: self.year,
+                    month: self.month,
+                    day: self.day,
+                    hour: self.hour,
+                    minute,
+                })),
+            };
+        }
+
+    }
+}
+
 impl UserState for AtTimeMinute {
-    fn process(&self, _id: i64, _input: &str, _db: &mut DataBase) -> ProcessResult {
-        panic!("Default UserState::process")
+    fn process(&self, data: TextEventData, db: &mut DataBase) -> ProcessResult {
+        if let Ok(minute) = data.input.parse::<i32>() {
+            self.proceed_next_stage(minute, data.uid, data.msg_id, db)
+        } else {
+            let command = SendMessageCommand {
+                text: "Incorrect format, expect number of minute".to_string(),
+            };
+            ProcessResult {
+                frontend_command: vec![FrontendCommand::send(command)],
+                next_state: Some(Box::new(ReadyToProcess {})),
+            }
+        }
     }
 
     fn process_keyboard(&self, data: KeyboardEventData, db: &mut DataBase) -> ProcessResult {
         if data.callback_data.starts_with("time_minute:") {
             let minute = data.callback_data[12..].parse::<i32>().unwrap();
-
-            if let Some(text) = self.ev_text.as_ref().cloned() {
-                // Make result command
-                let result_command = format!(
-                    "{}-{}-{} at {}.{} {}",
-                    self.day, self.month, self.year, self.hour, minute, text
-                );
-
-                let ret_text = process_text_command(data.uid, &result_command, db).unwrap();
-                let command = SendMessageCommand { text: ret_text };
-                return ProcessResult {
-                    frontend_command: vec![FrontendCommand::send(command)],
-                    next_state: Some(Box::new(ReadyToProcess {})),
-                };
-            } else {
-                let send_command = FrontendCommand::send(SendMessageCommand {
-                    text: "Now write event message".to_owned(),
-                });
-                let delete_command = FrontendCommand::delete_message(data.msg_id);
-                return ProcessResult {
-                    frontend_command: vec![delete_command, send_command],
-                    next_state: Some(Box::new(AtTimeText {
-                        year: self.year,
-                        month: self.month,
-                        day: self.day,
-                        hour: self.hour,
-                        minute,
-                    })),
-                };
+            self.proceed_next_stage(minute, data.uid, data.msg_id, db)
+        } else {
+            let command = SendMessageCommand {
+                text: "Incorrect keyboard format".to_string(),
+            };
+            ProcessResult {
+                frontend_command: vec![FrontendCommand::send(command)],
+                next_state: Some(Box::new(ReadyToProcess {})),
             }
-
-            // let command = KeyboardCommand {
-            //     action_type: "minute".to_owned(),
-            //     text: format!("Ok, {}. Now chiise minute", hour),
-            // };
-
-            // return ProcessResult {
-            //     frontend_command: vec![FrontendCommand::keyboard(command)],
-            //     next_state: Box::new(AtTimeMinute{
-            //         year: self.year,
-            //         month: self.month,
-            //         day: self.day,
-            //         hour: hour,
-            //     })
-            // }
-        }
-        let command = SendMessageCommand {
-            text: "Baka!".to_string(),
-        };
-        ProcessResult {
-            frontend_command: vec![FrontendCommand::send(command)],
-            next_state: Some(Box::new(ReadyToProcess {})),
         }
     }
 }
 
 impl UserState for AtTimeText {
-    fn process(&self, id: i64, input: &str, db: &mut DataBase) -> ProcessResult {
+    fn process(&self, data: TextEventData, db: &mut DataBase) -> ProcessResult {
         let result_command = format!(
             "{}-{}-{} at {}.{} {}",
-            self.day, self.month, self.year, self.hour, self.minute, input
+            self.day, self.month, self.year, self.hour, self.minute, &data.input
         );
 
-        let ret_text = process_text_command(id, &result_command, db).unwrap();
+        let ret_text = process_text_command(data.uid, &result_command, db).unwrap();
         let command = SendMessageCommand { text: ret_text };
         ProcessResult {
             frontend_command: vec![FrontendCommand::send(command)],
@@ -474,9 +507,9 @@ impl UserState for AtTimeText {
 }
 
 impl UserState for AfterInput {
-    fn process(&self, id: i64, input: &str, db: &mut DataBase) -> ProcessResult {
-        let message = input.to_string() + " " + &self.ev_text;
-        let ret_text = process_text_command(id, &message, db).unwrap();
+    fn process(&self, data: TextEventData, db: &mut DataBase) -> ProcessResult {
+        let message = data.input + " " + &self.ev_text;
+        let ret_text = process_text_command(data.uid, &message, db).unwrap();
 
         let command = SendMessageCommand {
             text: "Resulting command:\n".to_string() + &message + "\n" + &ret_text,
@@ -493,9 +526,9 @@ impl UserState for AfterInput {
 }
 
 impl UserState for RepDeleteChoose {
-    fn process(&self, _id: i64, input: &str, db: &mut DataBase) -> ProcessResult {
+    fn process(&self, data: TextEventData, db: &mut DataBase) -> ProcessResult {
         let ev_to_del: i32;
-        match input.parse::<i32>() {
+        match data.input.parse::<i32>() {
             // FIXME: ev - 1 ?
             Ok(ev) => {
                 ev_to_del = ev;

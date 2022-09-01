@@ -146,7 +146,12 @@ impl Engine {
         debug!("Handle text message : {}", text_message);
 
         let state = self.user_states.get(&(uid as i32)).expect("No user state!");
-        let result = state.process(uid, text_message, &mut self.data_base);
+        let data = TextEventData{
+            uid,
+            msg_id: 0,
+            input: text_message.to_owned(),
+        };
+        let result = state.process(data, &mut self.data_base);
         if result.next_state.is_some() {
             self.user_states
                 .insert(uid as i32, result.next_state.unwrap());

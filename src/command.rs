@@ -1,6 +1,6 @@
 extern crate chrono;
 
-use crate::time::{now, set_mock_time};
+use crate::time::now;
 use chrono::prelude::*;
 use regex::{Captures, Regex};
 
@@ -155,6 +155,7 @@ fn get_datetime_from_capture(cap: &Captures, tz: i32) -> Option<DateTime<Utc>>{
 mod tests {
     use super::*;
     use crate::command::Command::*;
+    use crate::time::set_mock_time;
 
     #[test]
     fn parse_for_general() {
