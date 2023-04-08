@@ -1,5 +1,7 @@
+use chrono::prelude::*;
 use remu_backend::database::DbMode;
 use remu_backend::engine::{engine_run, CmdFromEngine, CmdToEngine};
+use remu_backend::time::MockClock;
 use std::sync::mpsc;
 
 #[derive(Copy, Clone)]
@@ -18,7 +20,10 @@ pub struct TestCase {
 
 impl TestCase {
     pub fn create() -> TestCase {
-        let (tx_to_engine, rx_out_engine) = engine_run(DbMode::InMemory);
+        let (tx_to_engine, rx_out_engine) = engine_run(
+            DbMode::InMemory,
+            Box::new(MockClock::new(Utc.timestamp(61, 0))),
+        );
         let mut res = TestCase {
             cmd_list: Vec::new(),
             tx_to_engine,

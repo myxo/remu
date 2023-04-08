@@ -1,13 +1,16 @@
 use crate::command::*;
 use crate::database::DataBase;
-use crate::time::now;
 use chrono::prelude::*;
 
 // TODO: make test
-pub fn format_return_message_header(event_time: &DateTime<Utc>, tz: i32) -> String {
+pub fn format_return_message_header(
+    event_time: &DateTime<Utc>,
+    now: DateTime<Utc>,
+    tz: i32,
+) -> String {
     let tz = FixedOffset::west(tz * 3600);
     let t_event = event_time.with_timezone(&tz);
-    let t_now = now().with_timezone(&tz);
+    let t_now = now.with_timezone(&tz);
 
     if t_event < t_now {
         return String::from("Event time is in the past. Is it right?");
@@ -28,20 +31,30 @@ pub fn format_return_message_header(event_time: &DateTime<Utc>, tz: i32) -> Stri
     t_event.format("I'll remind you %B %e at %H:%M").to_string()
 }
 
-pub fn process_text_command(uid: i64, text_message: &str, db: &mut DataBase) -> Option<String> {
+pub fn process_text_command(
+    uid: i64,
+    text_message: &str,
+    now: DateTime<Utc>,
+    db: &mut DataBase,
+) -> Option<String> {
     let tz = db.get_user_timezone(uid);
-    match parse_command(String::from(text_message), tz)? {
-        Command::OneTimeEvent(ev) => Some(process_one_time_event_command(uid, ev, db)),
-        Command::RepetitiveEvent(ev) => Some(process_repetitive_event_command(uid, ev, db)),
+    match parse_command(String::from(text_message), now, tz)? {
+        Command::OneTimeEvent(ev) => Some(process_one_time_event_command(uid, ev, now, db)),
+        Command::RepetitiveEvent(ev) => Some(process_repetitive_event_command(uid, ev, now, db)),
     }
 }
 
-fn process_one_time_event_command(uid: i64, c: OneTimeEventImpl, db: &mut DataBase) -> String {
+fn process_one_time_event_command(
+    uid: i64,
+    c: OneTimeEventImpl,
+    now: DateTime<Utc>,
+    db: &mut DataBase,
+) -> String {
     let tz = db.get_user_timezone(uid);
-    let mut return_string = format_return_message_header(&c.event_time, tz);
+    let mut return_string = format_return_message_header(&c.event_time, now, tz);
     return_string.push('\n');
     return_string.push_str(&c.event_text);
-    db.put(uid, Command::OneTimeEvent(c));
+    db.put(uid, Command::OneTimeEvent(c), now);
 
     // delete newline char to write to log
     let tmp_string = str::replace(&return_string[..], "\n", " ");
@@ -53,12 +66,17 @@ fn process_one_time_event_command(uid: i64, c: OneTimeEventImpl, db: &mut DataBa
     return_string
 }
 
-fn process_repetitive_event_command(uid: i64, c: RepetitiveEventImpl, db: &mut DataBase) -> String {
+fn process_repetitive_event_command(
+    uid: i64,
+    c: RepetitiveEventImpl,
+    now: DateTime<Utc>,
+    db: &mut DataBase,
+) -> String {
     let tz = db.get_user_timezone(uid);
-    let mut return_string = format_return_message_header(&c.event_start_time, tz);
+    let mut return_string = format_return_message_header(&c.event_start_time, now, tz);
     return_string.push('\n');
     return_string.push_str(&c.event_text);
-    db.put(uid, Command::RepetitiveEvent(c));
+    db.put(uid, Command::RepetitiveEvent(c), now);
 
     // delete newline char to write to log
     let tmp_string = str::replace(&return_string[..], "\n", " ");

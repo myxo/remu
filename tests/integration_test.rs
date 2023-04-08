@@ -2,16 +2,11 @@
 extern crate chrono;
 extern crate remu_backend;
 
-use chrono::prelude::*;
-use remu_backend::time::set_mock_time;
-
 mod test_case;
 use crate::test_case::TestCase;
 
 #[test]
 fn simple_message() {
-    set_mock_time(Some(Utc.timestamp(61, 0)));
-
     let mut case = TestCase::create();
     case.send(r#"{"TextMessage":{"uid":1,"msg_id":2774,"message":"1s test"}}"#);
     case.expect(
@@ -31,8 +26,6 @@ fn simple_message() {
 
 #[test]
 fn simple_message_day_command() {
-    set_mock_time(Some(Utc.timestamp(61, 0)));
-
     let mut case = TestCase::create();
     case.send(r#"{"TextMessage":{"uid":1,"msg_id":2774,"message":"1d1h1s test"}}"#);
     case.expect(
@@ -52,8 +45,6 @@ fn simple_message_day_command() {
 
 #[test]
 fn simple_message_and_after_button() {
-    set_mock_time(Some(Utc.timestamp(61, 0)));
-
     let mut case = TestCase::create();
     case.send(r#"{"TextMessage":{"uid":1,"msg_id":2774,"message":"1s test"}}"#);
     case.expect(
@@ -88,8 +79,6 @@ fn simple_message_and_after_button() {
 
 #[test]
 fn simple_message_and_after_5m_button() {
-    set_mock_time(Some(Utc.timestamp(61, 0)));
-
     let mut case = TestCase::create();
     case.send(r#"{"TextMessage":{"uid":1,"msg_id":2774,"message":"1s test"}}"#);
     case.expect(
@@ -113,8 +102,6 @@ fn simple_message_and_after_5m_button() {
 
 #[test]
 fn simple_message_and_at_button() {
-    set_mock_time(Some(Utc.timestamp(61, 0)));
-
     let mut case = TestCase::create();
     case.send(r#"{"TextMessage":{"uid":1,"msg_id":2774,"message":"1s test"}}"#);
     case.expect(
@@ -149,8 +136,6 @@ fn simple_message_and_at_button() {
 
 #[test]
 fn active_event_list() {
-    set_mock_time(Some(Utc.timestamp(61, 0)));
-
     let mut case = TestCase::create();
     case.send(r#"{"TextMessage":{"uid":1,"msg_id":2774,"message":"5s test"}}"#);
     case.expect(
@@ -179,8 +164,6 @@ fn active_event_list() {
 
 #[test]
 fn at_some_day() {
-    set_mock_time(Some(Utc.timestamp(61, 0)));
-
     let mut case = TestCase::create();
 
     case.send(r#"{"TextMessage":{"uid":1,"msg_id":2802,"message":"/at"}}"#);
@@ -202,8 +185,6 @@ fn at_some_day() {
 
 #[test]
 fn at_next_mounth() {
-    set_mock_time(Some(Utc.timestamp(61, 0)));
-
     let mut case = TestCase::create();
 
     case.send(r#"{"TextMessage":{"uid":1,"msg_id":2802,"message":"/at"}}"#);
@@ -234,8 +215,6 @@ fn at_next_mounth() {
 
 #[test]
 fn at_today() {
-    set_mock_time(Some(Utc.timestamp(61, 0)));
-
     let mut case = TestCase::create();
 
     case.send(r#"{"TextMessage":{"uid":1,"msg_id":2802,"message":"/at"}}"#);
@@ -257,8 +236,6 @@ fn at_today() {
 
 #[test]
 fn at_tomorrow() {
-    set_mock_time(Some(Utc.timestamp(61, 0)));
-
     let mut case = TestCase::create();
 
     case.send(r#"{"TextMessage":{"uid":1,"msg_id":2802,"message":"/at"}}"#);
@@ -281,8 +258,6 @@ fn at_tomorrow() {
 #[test]
 fn at_write_time_by_hand() {
     // + negative
-    set_mock_time(Some(Utc.timestamp(61, 0)));
-
     let mut case = TestCase::create();
 
     case.send(r#"{"TextMessage":{"uid":1,"msg_id":2802,"message":"/at"}}"#);
@@ -295,7 +270,28 @@ fn at_write_time_by_hand() {
     case.expect(r#"{"uid":1,"to_msg":2938,"cmd_vec":[{"delete_message":0},{"send":{"text":"Now write event message"}}]}"#);
     case.send(r#"{"TextMessage":{"uid":1,"msg_id":2939,"message":"test"}}"#);
     case.expect(r#"{"uid":1,"to_msg":2939,"cmd_vec":[{"send":{"text":"I'll remind you tomorrow at 10:33\ntest"}}]}"#);
+}
 
+#[test]
+fn after_wrong_format() {
+    let mut case = TestCase::create();
+
+    case.send(r#"{"TextMessage":{"uid":1,"msg_id":2970,"message":"test"}}"#);
+    case.expect(
+        r#"{"uid":1,"to_msg":2970,"cmd_vec":[{"keyboard":{"action_type":"main","text":"test"}}]}"#,
+    );
+    case.send(
+        r#"{"KeyboardMessage":{"uid":1,"msg_id":2971,"call_data":"after","msg_text":"test"}}"#,
+    );
+    case.expect(
+        r#"{"uid":1,"to_msg":2971,"cmd_vec":[{"send":{"text":"Ok, now write time duration."}}]}"#,
+    );
+    case.send(r#"{"TextMessage":{"uid":1,"msg_id":2973,"message":"0"}}"#);
+    case.expect(
+        r#"{"uid":1,"to_msg":2973,"cmd_vec":[{"send":{"text":"Wrong `after` command format"}}]}"#,
+    );
+
+    case.run()
 }
 
 // add test:

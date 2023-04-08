@@ -1,6 +1,5 @@
 use crate::command::{Command, OneTimeEventImpl, RepetitiveEventImpl};
 use crate::sql_query as sql_q;
-use crate::time::now;
 use chrono::prelude::*;
 use chrono::Utc;
 use rusqlite::{params, Connection};
@@ -66,10 +65,10 @@ impl DataBase {
         }
     }
 
-    pub fn put(&mut self, uid: i64, value: Command) -> bool {
+    pub fn put(&mut self, uid: i64, value: Command, now: DateTime<Utc>) -> bool {
         match value {
             Command::OneTimeEvent(ev) => self.put_one_time_event(uid, -1, &ev),
-            Command::RepetitiveEvent(ev) => self.put_repetitive_event(uid, &ev),
+            Command::RepetitiveEvent(ev) => self.put_repetitive_event(uid, &ev, now),
         }
     }
 
@@ -111,6 +110,7 @@ impl DataBase {
                             row.get(2).unwrap(),
                             row.get(3).unwrap(),
                             row.get(1).unwrap(),
+                            time,
                         ))
                     });
                 let event = event.unwrap();
@@ -236,7 +236,12 @@ impl DataBase {
         true
     }
 
-    fn put_repetitive_event(&mut self, uid: i64, command: &RepetitiveEventImpl) -> bool {
+    fn put_repetitive_event(
+        &mut self,
+        uid: i64,
+        command: &RepetitiveEventImpl,
+        now: DateTime<Utc>,
+    ) -> bool {
         let event_time: i64 = command.event_start_time.timestamp();
         let event_wait: i64 = command.event_wait_time.num_seconds();
         let res = self.conn.execute(
@@ -256,6 +261,7 @@ impl DataBase {
             command.event_start_time.timestamp(),
             command.event_wait_time.num_seconds(),
             command.event_text.clone(),
+            now,
         );
 
         self.put_one_time_event(uid, id, &active_event)
@@ -266,8 +272,8 @@ fn create_nearest_active_event_from_repetitive(
     start_time: i64,
     wait_time: i64,
     text: String,
+    now: DateTime<Utc>,
 ) -> OneTimeEventImpl {
-    let now = now();
     let wait_time = if wait_time < 0 { 1 } else { wait_time }; // TODO: make propper error handling
     let dt = chrono::Duration::seconds(wait_time);
     let mut event_time = Utc.timestamp(start_time, 0);
@@ -338,7 +344,7 @@ mod tests {
             event_text: String::from("test"),
             event_time: Utc.timestamp(61, 0),
         });
-        db.put(1, event);
+        db.put(1, event, Utc::now());
         let wake = db.get_nearest_wakeup();
         assert!(wake.is_some());
         assert_eq!(wake.unwrap().timestamp(), 61);
@@ -374,9 +380,10 @@ mod tests {
             event_text: String::from("test"),
             event_time: Utc.timestamp(65, 0),
         });
-        db.put(1, event1.clone());
-        db.put(1, event2.clone());
-        db.put(1, event3.clone());
+        let now = Utc::now();
+        db.put(1, event1.clone(), now);
+        db.put(1, event2.clone(), now);
+        db.put(1, event3.clone(), now);
 
         let expect = vec![
             RetrieveEventsResult {

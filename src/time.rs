@@ -1,36 +1,40 @@
 use chrono::{DateTime, Utc};
 
-#[cfg(not(feature = "mock-time"))]
-pub fn now() -> DateTime<Utc> {
-    Utc::now()
+pub trait Clock {
+    fn now(&self) -> DateTime<Utc>;
+    fn set_time(&mut self, t: DateTime<Utc>);
 }
 
-#[cfg(not(feature = "mock-time"))]
-pub fn set_mock_time(_time: Option<DateTime<Utc>>) {
-    warn!("Setting mock time outside of feature = \"mock-time\" enviroment");
-}
+pub struct OsClock {}
 
-#[cfg(feature = "mock-time")]
-pub mod mock_time {
-    use super::*;
-    use lazy_static::lazy_static;
-    use std::sync::Mutex;
-
-    lazy_static! {
-        static ref MOCK_TIME: Mutex<Option<DateTime<Utc>>> = Mutex::new(None);
+impl Clock for OsClock {
+    fn now(&self) -> DateTime<Utc> {
+        return Utc::now();
     }
 
-    pub fn now() -> DateTime<Utc> {
-        MOCK_TIME.lock().unwrap().unwrap_or_else(Utc::now)
-    }
-
-    pub fn set_mock_time(time: Option<DateTime<Utc>>) {
-        *MOCK_TIME.lock().unwrap() = time;
+    fn set_time(&mut self, _: DateTime<Utc>) {
+        panic!("cannot set time for OsClock");
     }
 }
 
-#[cfg(feature = "mock-time")]
-pub use mock_time::now;
+pub struct MockClock {
+    currect_time: DateTime<Utc>,
+}
 
-#[cfg(feature = "mock-time")]
-pub use mock_time::set_mock_time;
+impl MockClock {
+    pub fn new(start: DateTime<Utc>) -> MockClock {
+        return MockClock {
+            currect_time: start,
+        };
+    }
+}
+
+impl Clock for MockClock {
+    fn now(&self) -> DateTime<Utc> {
+        return self.currect_time;
+    }
+
+    fn set_time(&mut self, t: DateTime<Utc>) {
+        self.currect_time = t;
+    }
+}

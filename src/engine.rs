@@ -8,7 +8,7 @@ use std::time;
 use crate::command::*;
 use crate::database::{DataBase, DbMode, UserInfo};
 use crate::state::*;
-use crate::time::{now, set_mock_time};
+use crate::time::Clock;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum CmdToEngine {
@@ -46,6 +46,7 @@ struct Engine {
     data_base: DataBase,
     stop_loop: AtomicBool,
     user_states: HashMap<i32, Box<dyn UserState>>,
+    clock: Box<dyn Clock>,
 }
 
 pub struct ProcessResult {
@@ -53,11 +54,14 @@ pub struct ProcessResult {
     pub next_state: Option<Box<dyn UserState>>,
 }
 
-pub fn engine_run(mode: DbMode) -> (mpsc::Sender<CmdToEngine>, mpsc::Receiver<CmdFromEngine>) {
+pub fn engine_run(
+    mode: DbMode,
+    clock: Box<dyn Clock + Send>,
+) -> (mpsc::Sender<CmdToEngine>, mpsc::Receiver<CmdFromEngine>) {
     let (tx_to_engine, rx_in_engine) = mpsc::channel();
     let (tx_from_engine, rx_out_engine) = mpsc::channel();
     thread::spawn(move || {
-        let mut engine = Engine::new(mode);
+        let mut engine = Engine::new(mode, clock);
 
         while !engine.stop_loop.load(Ordering::Relaxed) {
             for event in engine.tick() {
@@ -112,7 +116,9 @@ pub fn engine_run(mode: DbMode) -> (mpsc::Sender<CmdToEngine>, mpsc::Receiver<Cm
                     }
 
                     CmdToEngine::AdvanceTime(seconds) => {
-                        set_mock_time(Some(now() + chrono::Duration::seconds(seconds)));
+                        engine
+                            .clock
+                            .set_time(engine.clock.now() + chrono::Duration::seconds(seconds));
                     }
 
                     CmdToEngine::Terminate => {
@@ -128,12 +134,13 @@ pub fn engine_run(mode: DbMode) -> (mpsc::Sender<CmdToEngine>, mpsc::Receiver<Cm
 }
 
 impl Engine {
-    pub fn new(mode: DbMode) -> Engine {
+    pub fn new(mode: DbMode, clock: Box<dyn Clock + Send>) -> Engine {
         info!("Initialize engine");
         let mut engine = Engine {
             stop_loop: AtomicBool::new(false),
             data_base: DataBase::new(mode),
             user_states: HashMap::new(),
+            clock,
         };
 
         for id in engine.get_user_chat_id_all() {
@@ -146,12 +153,12 @@ impl Engine {
         debug!("Handle text message : {}", text_message);
 
         let state = self.user_states.get(&(uid as i32)).expect("No user state!");
-        let data = TextEventData{
+        let data = TextEventData {
             uid,
             msg_id: 0,
             input: text_message.to_owned(),
         };
-        let result = state.process(data, &mut self.data_base);
+        let result = state.process(data, self.clock.now(), &mut self.data_base);
         if result.next_state.is_some() {
             self.user_states
                 .insert(uid as i32, result.next_state.unwrap());
@@ -177,7 +184,7 @@ impl Engine {
 
         let result = match common_process_keyboard(&data, &mut self.data_base) {
             Some(res) => res,
-            None => state.process_keyboard(data, &mut self.data_base),
+            None => state.process_keyboard(data, self.clock.now(), &mut self.data_base),
         };
         if result.next_state.is_some() {
             self.user_states
@@ -227,7 +234,10 @@ impl Engine {
 
     fn tick(&mut self) -> Vec<CmdFromEngine> {
         let mut result: Vec<CmdFromEngine> = Vec::new();
-        for ev in self.data_base.extract_events_happens_already(now()) {
+        for ev in self
+            .data_base
+            .extract_events_happens_already(self.clock.now())
+        {
             let event_text = match &ev.command {
                 Command::OneTimeEvent(ev) => ev.event_text.clone(),
                 Command::RepetitiveEvent(ev) => ev.event_text.clone(),
@@ -247,7 +257,7 @@ impl Engine {
 
     fn get_time_until_next_wakeup(&self) -> std::time::Duration {
         if let Some(ts) = self.data_base.get_nearest_wakeup() {
-            ts.signed_duration_since(now())
+            ts.signed_duration_since(self.clock.now())
                 .to_std()
                 .unwrap_or(time::Duration::from_secs(0))
         } else {
