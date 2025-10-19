@@ -11,6 +11,10 @@ mock-time = []
 name = "remu_backend"
 crate-type = ["rlib", "dylib"]
 
+[[bin]]
+name = "remu"
+path = "src/remu.rs"
+
 [dependencies]
 chrono = "0.4"
 regex = "1.6"
@@ -20,6 +24,9 @@ rusqlite = "0.28"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 lazy_static = "1.4.0"
+teloxide = { version = "0.12", features = ["macros"] }
+pretty_env_logger = "0.4"
+tokio = { version =  "1.8", features = ["rt-multi-thread", "macros"] }
 
 [dependencies.cpython]
 version = "0.7"

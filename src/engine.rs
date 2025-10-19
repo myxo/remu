@@ -42,16 +42,16 @@ pub struct CmdFromEngine {
     pub cmd_vec: Vec<FrontendCommand>,
 }
 
-struct Engine {
+pub struct Engine {
     data_base: DataBase,
     stop_loop: AtomicBool,
-    user_states: HashMap<i32, Box<dyn UserState>>,
-    clock: Box<dyn Clock>,
+    user_states: HashMap<i32, Box<dyn UserState + Send>>,
+    clock: Box<dyn Clock + Send>,
 }
 
 pub struct ProcessResult {
     pub frontend_command: Vec<FrontendCommand>,
-    pub next_state: Option<Box<dyn UserState>>,
+    pub next_state: Option<Box<dyn UserState + Send>>,
 }
 
 pub fn engine_run(
