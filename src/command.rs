@@ -1,6 +1,7 @@
 extern crate chrono;
 
 use chrono::prelude::*;
+use log::warn;
 use regex::{Captures, Regex};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -144,10 +145,8 @@ fn get_datetime_from_capture(cap: &Captures, now: DateTime<Utc>, tz: i32) -> Opt
     let hour    = cap.name("m_hour").unwrap().as_str().parse().unwrap();
     
     use chrono::offset::LocalResult::Single;
-    if let Single(date) = Utc.ymd_opt(year, month, day) {
-        if let Some(datetime) = date.and_hms_opt(hour, minute, 0){
-            return Some(datetime + dt);
-        }
+    if let Single(date) = Utc.with_ymd_and_hms(year, month, day, hour, minute, 0) {
+        return Some(date + dt);
     }
     None
 }
@@ -233,7 +232,9 @@ mod tests {
             let command = String::from("24-10 at 18.30");
             let text = "some text";
             let command_text = command + " " + text;
-            let t = Utc.ymd(clock.now().year(), 10, 24).and_hms(18 - 3, 30, 0);
+            let t = Utc
+                .with_ymd_and_hms(clock.now().year(), 10, 24, 18 - 3, 30, 0)
+                .unwrap();
             let result = try_parse_at(&command_text, clock.now(), -3);
             assert!(result.is_some());
             match result.unwrap() {
@@ -246,12 +247,14 @@ mod tests {
         }
 
         {
-            clock.set_time(Utc.timestamp(61, 0));
+            clock.set_time(Utc.timestamp_opt(61, 0).unwrap());
             let command = String::from("24 at 18.30");
             let text = "some text";
             let command_text = command + " " + text;
             let now = clock.now();
-            let t = Utc.ymd(now.year(), now.month(), 24).and_hms(18 - 3, 30, 0);
+            let t = Utc
+                .with_ymd_and_hms(now.year(), now.month(), 24, 18 - 3, 30, 0)
+                .unwrap();
 
             let result = try_parse_at(&command_text, now, -3);
             assert!(result.is_some());
@@ -270,8 +273,8 @@ mod tests {
             let command_text = command + " " + text;
             let now = clock.now();
             let t = Utc
-                .ymd(now.year(), now.month(), now.day())
-                .and_hms(18, 30, 0);
+                .with_ymd_and_hms(now.year(), now.month(), now.day(), 18, 30, 0)
+                .unwrap();
 
             let result = try_parse_at(&command_text, now, 0);
             assert!(result.is_some());
@@ -289,8 +292,8 @@ mod tests {
             let command_text = command + " " + text;
             let now = clock.now();
             let t = Utc
-                .ymd(now.year(), now.month(), now.day())
-                .and_hms(18, 0, 0);
+                .with_ymd_and_hms(now.year(), now.month(), now.day(), 18, 0, 0)
+                .unwrap();
 
             let result = try_parse_at(&command_text, clock.now(), 0);
             assert!(result.is_some());
@@ -346,7 +349,9 @@ mod tests {
         let text = "test rep";
         let command_text = command + " " + text;
         let now = Utc::now();
-        let t = Utc.ymd(now.year(), 10, 6).and_hms(10 - 3, 0, 0);
+        let t = Utc
+            .with_ymd_and_hms(now.year(), 10, 6, 10 - 3, 0, 0)
+            .unwrap();
         let dt = chrono::Duration::seconds(
             (0 as i64) * (60*60*24)  // days
             + (0 as i64) * (60*60)      // hours

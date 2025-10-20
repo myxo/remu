@@ -1,9 +1,20 @@
+use anyhow::{Context, Result};
+use log::{debug, info, warn};
 use std::sync::Arc;
-use teloxide::{prelude::*, utils::command::BotCommands};
+use teloxide::{
+    Bot,
+    dispatching::{HandlerExt, UpdateFilterExt},
+    dptree,
+    payloads::SendMessageSetters,
+    prelude::{Dispatcher, Requester, ResponseResult},
+    types::{
+        CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message, Recipient, Update,
+    },
+    utils::command::BotCommands,
+};
 use tokio::sync::Mutex;
 
-#[macro_use]
-extern crate log;
+use crate::state::FrontendCommand;
 
 mod command;
 pub mod database;
@@ -24,18 +35,20 @@ enum Command {
 }
 
 async fn answer_command(
-    engine: &mut engine::Engine,
+    //engine: &mut engine::Engine,
+    provider: Arc<Mutex<engine::Engine>>,
     bot: Bot,
     msg: Message,
     cmd: Command,
 ) -> ResponseResult<()> {
-    let user = msg.from().expect("message has user");
+    let mut engine = provider.lock().await;
     match cmd {
         Command::Help => {
             bot.send_message(msg.chat.id, Command::descriptions().to_string())
                 .await?;
         }
         Command::Start => {
+            let user = msg.from.expect("TODO");
             engine.add_user(
                 user.id.0 as i64,
                 user.username.as_ref().unwrap(),
@@ -50,75 +63,263 @@ async fn answer_command(
     Ok(())
 }
 
-async fn answer(engine: &mut engine::Engine, bot: Bot, msg: Message) -> ResponseResult<()> {
-    let user = msg.from().expect("message has user");
-    info!("In a text handler");
+async fn answer(
+    provider: Arc<Mutex<engine::Engine>>,
+    bot: Bot,
+    msg: Message,
+) -> ResponseResult<()> {
+    let user = msg.from.as_ref().expect("message has user");
+    debug!("In a text handler, user: {}", user.first_name);
+    let mut engine = provider.lock().await;
     let cmds = engine.handle_text_message(user.id.0 as i64, &msg.text().unwrap());
+    match cmds {
+        Ok(cmds) => {
+            let mut front = TelegramFrontend { bot: bot };
+            if let Err(e) = handle_command_to_frontend(&mut front, user.id.0 as i64, cmds) {
+                warn!("cannot handle frontend command: {e}");
+            }
+        }
+        Err(e) => {
+            bot.send_message(
+                user.id,
+                format!("Error while state machine processing:\n{e:#}"),
+            )
+            .await?;
+        }
+    };
     Ok(())
 }
-async fn keyboard(engine: &mut engine::Engine, bot: Bot, q: CallbackQuery) -> ResponseResult<()> {
+
+async fn keyboard(
+    provider: Arc<Mutex<engine::Engine>>,
+    bot: Bot,
+    q: CallbackQuery,
+) -> ResponseResult<()> {
     let msg = q.message.unwrap();
-    let user = msg.from().expect("message has user");
-    engine.handle_keyboard_responce(user.id.0 as i64, msg.id.0 as i64, "", &msg.text().unwrap());
+    let user = q.from;
+    let mut engine = provider.lock().await;
+    let cmds = engine.handle_keyboard_responce(
+        user.id.0 as i64,
+        msg.id().0 as i64,
+        &q.data.unwrap(),
+        &msg.regular_message().unwrap().text().unwrap(),
+    );
+    let mut front = TelegramFrontend { bot: bot };
+    if let Err(e) = handle_command_to_frontend(&mut front, user.id.0 as i64, cmds) {
+        warn!("cannot handle frontend command: {e}");
+    }
     Ok(())
 }
 
 #[tokio::main]
-async fn main() {
-    pretty_env_logger::init();
+async fn main() -> Result<()> {
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    info!("start");
 
     let clock = Box::new(crate::time::OsClock {});
     let provider = Arc::new(Mutex::new(engine::Engine::new(
         database::DbMode::Filesystem,
         clock,
     )));
+    let api_key = std::fs::read_to_string("token.id")?;
+    let bot = Bot::new(api_key);
+    let mut front = TelegramFrontend { bot: bot.clone() };
+    let provider_copy = provider.clone();
 
-    /*
-    let handler = Update::filter_message().filter_command::<Command>().endpoint(
-        |bot: Bot, provider: Arc<Mutex<engine::Engine>>, msg: Message, cmd: Command| async move {
-            let mut prov = provider.lock().await;
-            answer(&mut prov, bot, msg, cmd).await?;
-            respond(())
-        },
-    );
-    */
+    tokio::spawn(async move {
+        loop {
+            let mut engine = provider_copy.lock().await;
+            if engine.is_stop() {
+                break;
+            }
+            let events = engine.tick();
+            if !events.is_empty() {
+                warn!("TMP: tick events: {events:?}");
+            }
+            for ev in events {
+                if let Err(e) = handle_command_to_frontend(&mut front, ev.uid, ev.cmd_vec) {
+                    warn!("cannot handle frontend command: {e}");
+                }
+            }
 
-    let handler =
-        dptree::entry()
-            .branch(Update::filter_message().endpoint(
-                |bot: Bot, provider: Arc<Mutex<engine::Engine>>, msg: Message| async move {
-                    let mut prov = provider.lock().await;
-                    answer(&mut prov, bot, msg).await?;
-                    respond(())
-                },
-            ))
-            .branch(
-                Update::filter_message()
-                    .filter_command::<Command>()
-                    .endpoint(
-                        |bot: Bot,
-                         provider: Arc<Mutex<engine::Engine>>,
-                         msg: Message,
-                         cmd: Command| async move {
-                            let mut prov = provider.lock().await;
-                            answer_command(&mut prov, bot, msg, cmd).await?;
-                            respond(())
-                        },
-                    ),
-            )
-            .branch(Update::filter_callback_query().endpoint(
-                |bot: Bot, provider: Arc<Mutex<engine::Engine>>, q: CallbackQuery| async move {
-                    let mut prov = provider.lock().await;
-                    keyboard(&mut prov, bot, q).await?;
-                    respond(())
-                },
-            ));
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        }
+    });
 
-    let bot = Bot::from_env();
+    let handler = dptree::entry()
+        .branch(
+            Update::filter_message()
+                .filter_command::<Command>()
+                .endpoint(answer_command),
+        )
+        .branch(Update::filter_message().endpoint(answer))
+        .branch(Update::filter_callback_query().endpoint(keyboard));
+
     Dispatcher::builder(bot, handler)
         .dependencies(dptree::deps![provider])
         .enable_ctrlc_handler()
         .build()
         .dispatch()
         .await;
+    Ok(())
+}
+
+trait FrontendHandler {
+    fn send_message(
+        &mut self,
+        uid: i64,
+        msg: &str,
+        keyboard: Option<InlineKeyboardMarkup>,
+    ) -> Result<()>;
+}
+
+struct TelegramFrontend {
+    bot: Bot,
+}
+
+impl FrontendHandler for TelegramFrontend {
+    fn send_message(
+        &mut self,
+        uid: i64,
+        msg: &str,
+        keyboard: Option<InlineKeyboardMarkup>,
+    ) -> Result<()> {
+        futures::executor::block_on(async {
+            let send = self
+                .bot
+                .send_message(Recipient::Id(teloxide::types::ChatId(uid)), msg);
+            let send = if let Some(keyboard) = keyboard {
+                send.reply_markup(keyboard)
+            } else {
+                send
+            };
+            send.await.context("cannot send telegram message")?;
+            Ok(())
+        })
+    }
+}
+
+fn handle_command_to_frontend(
+    front: &mut impl FrontendHandler,
+    uid: i64,
+    cmds: Vec<FrontendCommand>,
+) -> Result<()> {
+    for cmd in cmds {
+        debug!("process frontend command {:?}", cmd);
+        match cmd {
+            state::FrontendCommand::send(send_message_command) => {
+                front.send_message(uid, &send_message_command.text, None)?;
+            }
+            state::FrontendCommand::calendar(_at_calendar_command) => todo!(),
+            state::FrontendCommand::keyboard(keyboard_command) => {
+                match keyboard_command.action_type {
+                    state::KeyboardCommandType::Main => {
+                        front.send_message(
+                            uid,
+                            &keyboard_command.text,
+                            Some(make_main_keyboard()),
+                        )?;
+                    }
+                    state::KeyboardCommandType::Hour => todo!(),
+                    state::KeyboardCommandType::Minute => todo!(),
+                }
+            }
+            state::FrontendCommand::delete_message(_) => todo!(),
+            state::FrontendCommand::delete_keyboard {} => todo!(),
+        }
+    }
+    Ok(())
+}
+
+fn make_main_keyboard() -> InlineKeyboardMarkup {
+    let mut keyboard: Vec<Vec<InlineKeyboardButton>> = vec![];
+
+    keyboard.push(vec![
+        InlineKeyboardButton::callback("at".to_owned(), "at".to_owned()),
+        InlineKeyboardButton::callback("after".to_owned(), "after".to_owned()),
+    ]);
+
+    keyboard.push(vec![
+        InlineKeyboardButton::callback("5m".to_owned(), "5m".to_owned()),
+        InlineKeyboardButton::callback("30m".to_owned(), "30m".to_owned()),
+        InlineKeyboardButton::callback("1h".to_owned(), "1h".to_owned()),
+    ]);
+
+    keyboard.push(vec![
+        InlineKeyboardButton::callback("3h".to_owned(), "3h".to_owned()),
+        InlineKeyboardButton::callback("1d".to_owned(), "1d".to_owned()),
+        InlineKeyboardButton::callback("Ok".to_owned(), "Ok".to_owned()),
+    ]);
+
+    InlineKeyboardMarkup::new(keyboard)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct Message {
+        msg: String,
+        keyboard: Option<InlineKeyboardMarkup>,
+    }
+
+    struct MockFront {
+        chat: Vec<Message>,
+    }
+
+    impl MockFront {
+        fn new() -> Self {
+            Self { chat: vec![] }
+        }
+    }
+
+    impl FrontendHandler for MockFront {
+        fn send_message(
+            &mut self,
+            _uid: i64,
+            msg: &str,
+            keyboard: Option<InlineKeyboardMarkup>,
+        ) -> Result<()> {
+            self.chat.push(Message {
+                msg: msg.to_owned(),
+                keyboard: keyboard,
+            });
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn property_test() {
+        // model of messager (messages + keyboard attached to them)
+        // model of expected events
+        chaos_theory::check(|src| {
+            let clock = Box::new(crate::time::MockClock::new(chrono::Utc::now()));
+            let uid = 69;
+            let mut count = 0;
+            let mut new_msg = || {
+                count += 1;
+                format!("msg# {count}")
+            };
+
+            let mut front = MockFront::new();
+            let mut engine = engine::Engine::new(database::DbMode::InMemory, clock);
+            engine.add_user(uid, "name", uid, "", "", -3); // TODO: chaos tz
+
+            let labels = &["user_write_msg", "user_push_button", "tick"];
+            src.select("select", labels, |src, l, _| {
+                match l {
+                    "user_write_msg" => {
+                        let cmds = engine
+                            .handle_text_message(uid, &new_msg())
+                            .expect("no error in test");
+                        handle_command_to_frontend(&mut front, uid, cmds)
+                            .expect("no error in test");
+                    }
+                    "user_push_button" => {}
+                    "tick" => {}
+                    _ => panic!("meh"),
+                };
+            });
+        });
+    }
 }

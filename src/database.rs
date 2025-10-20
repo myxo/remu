@@ -1,8 +1,9 @@
 use crate::command::{Command, OneTimeEventImpl, RepetitiveEventImpl};
 use crate::sql_query as sql_q;
-use chrono::prelude::*;
 use chrono::Utc;
-use rusqlite::{params, Connection};
+use chrono::prelude::*;
+use log::error;
+use rusqlite::{Connection, params};
 
 pub struct DataBase {
     conn: Connection,
@@ -89,7 +90,10 @@ impl DataBase {
                 let id: i64 = row.get(0).unwrap();
                 let command = Command::OneTimeEvent(OneTimeEventImpl {
                     event_text: row.get(1).unwrap(),
-                    event_time: Utc.timestamp(row.get(2).unwrap(), 0),
+                    event_time: Utc
+                        .timestamp_opt(row.get(2).unwrap(), 0)
+                        .single()
+                        .expect("don't have time"),
                 });
                 self.conn
                     .execute(sql_q::DELETE_FROM_ACTIVE_EVENT_BY_ID, &[&id])
@@ -124,7 +128,11 @@ impl DataBase {
     pub fn get_nearest_wakeup(&self) -> Option<DateTime<Utc>> {
         self.conn
             .query_row(sql_q::MIN_TIMESTAMP_FROM_ACTIVE_EVENT, params![], |row| {
-                row.get(0).map(|expr| Utc.timestamp(expr, 0))
+                row.get(0).map(|expr| {
+                    Utc.timestamp_opt(expr, 0)
+                        .single()
+                        .expect("don't have time")
+                })
             })
             .ok()
     }
@@ -140,7 +148,10 @@ impl DataBase {
             .query_map(&[&uid], |row| {
                 Ok(Command::OneTimeEvent(OneTimeEventImpl {
                     event_text: row.get(1).unwrap(),
-                    event_time: Utc.timestamp(row.get(2).unwrap(), 0),
+                    event_time: Utc
+                        .timestamp_opt(row.get(2).unwrap(), 0)
+                        .single()
+                        .expect("don't have time"),
                 }))
             })
             .expect("error in query map");
@@ -164,7 +175,10 @@ impl DataBase {
                 Ok((
                     Command::RepetitiveEvent(RepetitiveEventImpl {
                         event_text: row.get(1).unwrap(),
-                        event_start_time: Utc.timestamp(row.get(2).unwrap(), 0),
+                        event_start_time: Utc
+                            .timestamp_opt(row.get(2).unwrap(), 0)
+                            .single()
+                            .expect("don't have time"),
                         event_wait_time: chrono::Duration::seconds(row.get(3).unwrap()),
                     }),
                     row.get(0).unwrap(),
@@ -276,7 +290,10 @@ fn create_nearest_active_event_from_repetitive(
 ) -> OneTimeEventImpl {
     let wait_time = if wait_time < 0 { 1 } else { wait_time }; // TODO: make propper error handling
     let dt = chrono::Duration::seconds(wait_time);
-    let mut event_time = Utc.timestamp(start_time, 0);
+    let mut event_time = Utc
+        .timestamp_opt(start_time, 0)
+        .single()
+        .expect("don't have time");
 
     while event_time < now {
         event_time = event_time + dt;
@@ -342,7 +359,7 @@ mod tests {
         // add event
         let event = Command::OneTimeEvent(OneTimeEventImpl {
             event_text: String::from("test"),
-            event_time: Utc.timestamp(61, 0),
+            event_time: Utc.timestamp_opt(61, 0).unwrap(),
         });
         db.put(1, event, Utc::now());
         let wake = db.get_nearest_wakeup();
@@ -350,7 +367,7 @@ mod tests {
         assert_eq!(wake.unwrap().timestamp(), 61);
 
         // pop event
-        let events = db.extract_events_happens_already(Utc.timestamp(61, 0));
+        let events = db.extract_events_happens_already(Utc.timestamp_opt(61, 0).unwrap());
         assert!(db.get_nearest_wakeup().is_none());
         assert_eq!(events.len(), 1);
     }
@@ -370,15 +387,15 @@ mod tests {
 
         let event1 = Command::OneTimeEvent(OneTimeEventImpl {
             event_text: String::from("test"),
-            event_time: Utc.timestamp(61, 0),
+            event_time: Utc.timestamp_opt(61, 0).unwrap(),
         });
         let event2 = Command::OneTimeEvent(OneTimeEventImpl {
             event_text: String::from("test"),
-            event_time: Utc.timestamp(63, 0),
+            event_time: Utc.timestamp_opt(63, 0).unwrap(),
         });
         let event3 = Command::OneTimeEvent(OneTimeEventImpl {
             event_text: String::from("test"),
-            event_time: Utc.timestamp(65, 0),
+            event_time: Utc.timestamp_opt(65, 0).unwrap(),
         });
         let now = Utc::now();
         db.put(1, event1.clone(), now);
@@ -396,7 +413,7 @@ mod tests {
             },
         ];
 
-        let events = db.extract_events_happens_already(Utc.timestamp(64, 0));
+        let events = db.extract_events_happens_already(Utc.timestamp_opt(64, 0).unwrap());
         assert_eq!(events, expect);
     }
 }

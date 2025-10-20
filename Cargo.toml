@@ -2,14 +2,10 @@
 name = "remu"
 version = "0.2.0"
 authors = ["Klimov Nikolay <klimov.ns@mail.ru>"]
-edition = "2021"
+edition = "2024"
 
 [features]
 mock-time = []
-
-[lib]
-name = "remu_backend"
-crate-type = ["rlib", "dylib"]
 
 [[bin]]
 name = "remu"
@@ -17,17 +13,17 @@ path = "src/remu.rs"
 
 [dependencies]
 chrono = "0.4"
-regex = "1.6"
+regex = "1.12"
 log = "0.4"
-fern = "0.6"# log
-rusqlite = "0.28"
+rusqlite = "0.37"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-lazy_static = "1.4.0"
-teloxide = { version = "0.12", features = ["macros"] }
-pretty_env_logger = "0.4"
-tokio = { version =  "1.8", features = ["rt-multi-thread", "macros"] }
+lazy_static = "1.5.0"
+teloxide = { version = "0.17", features = ["macros"] }
+env_logger = "0.11"
+futures = "0.3"
+tokio = { version =  "1.48", features = ["rt-multi-thread", "macros"] }
+anyhow = "1.0.100"
 
-[dependencies.cpython]
-version = "0.7"
-features = ["extension-module"]
+[dev-dependencies]
+chaos_theory = "0.1.3"

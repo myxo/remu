@@ -1,6 +1,7 @@
 use crate::command::*;
 use crate::database::DataBase;
 use chrono::prelude::*;
+use log::debug;
 
 // TODO: make test
 pub fn format_return_message_header(
@@ -8,7 +9,7 @@ pub fn format_return_message_header(
     now: DateTime<Utc>,
     tz: i32,
 ) -> String {
-    let tz = FixedOffset::west(tz * 3600);
+    let tz = FixedOffset::west_opt(tz * 3600).expect("wrong tz?");
     let t_event = event_time.with_timezone(&tz);
     let t_now = now.with_timezone(&tz);
 
