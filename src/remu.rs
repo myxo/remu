@@ -82,7 +82,7 @@ async fn answer(
         Err(e) => {
             bot.send_message(
                 user.id,
-                format!("Error while state machine processing:\n{e:#}"),
+                format!("Error while state machine processing:\n\n{e:#}"),
             )
             .await?;
         }
@@ -256,6 +256,10 @@ fn make_main_keyboard() -> InlineKeyboardMarkup {
 
 #[cfg(test)]
 mod tests {
+    use teloxide::types::InlineKeyboardButtonKind;
+
+    use crate::state::EXPECT_DURATION_MSG;
+
     use super::*;
 
     struct Message {
@@ -292,7 +296,17 @@ mod tests {
     fn property_test() {
         // model of messager (messages + keyboard attached to them)
         // model of expected events
+
+        let make_duration_spec = || -> String {
+            "5m".to_owned() // TODO: accept duration
+        };
         chaos_theory::check(|src| {
+            if src.should_log() {
+                env_logger::Builder::from_env(
+                    env_logger::Env::default().default_filter_or("debug"),
+                )
+                .init();
+            }
             let clock = Box::new(crate::time::MockClock::new(chrono::Utc::now()));
             let uid = 69;
             let mut count = 0;
@@ -306,20 +320,68 @@ mod tests {
             engine.add_user(uid, "name", uid, "", "", -3); // TODO: chaos tz
 
             let labels = &["user_write_msg", "user_push_button", "tick"];
-            src.select("select", labels, |src, l, _| {
-                match l {
-                    "user_write_msg" => {
-                        let cmds = engine
-                            .handle_text_message(uid, &new_msg())
-                            .expect("no error in test");
-                        handle_command_to_frontend(&mut front, uid, cmds)
-                            .expect("no error in test");
-                    }
-                    "user_push_button" => {}
-                    "tick" => {}
-                    _ => panic!("meh"),
-                };
-            });
+
+            let n = src.any_of("iter", chaos_theory::make::int_in_range(0..50));
+            for _ in 0..n {
+                src.select("select", labels, |src, l, _| {
+                    match l {
+                        "user_write_msg" => {
+                            let need_answer_duration = front
+                                .chat
+                                .last()
+                                .and_then(|last| Some(last.msg == EXPECT_DURATION_MSG))
+                                .unwrap_or(false);
+
+                            let msg = if need_answer_duration {
+                                if src.any("error_instead_of_duration") {
+                                    "non spec string".to_owned()
+                                } else {
+                                    make_duration_spec()
+                                }
+                            } else {
+                                if src.any("spec message") {
+                                    make_duration_spec() + " " + &new_msg()
+                                } else {
+                                    new_msg()
+                                }
+                            };
+
+                            src.log_value("msg", &msg);
+                            let cmds = engine
+                                .handle_text_message(uid, &msg)
+                                .expect("no error in test");
+                            handle_command_to_frontend(&mut front, uid, cmds)
+                                .expect("no error in test");
+                        }
+                        "user_push_button" => {
+                            let mut buttons = Vec::<(InlineKeyboardButton, i64, &str)>::new();
+                            for (i, msg) in front.chat.iter().enumerate() {
+                                if let Some(k) = &msg.keyboard {
+                                    for row in &k.inline_keyboard {
+                                        for b in row.iter() {
+                                            buttons.push((b.clone(), i as i64, &msg.msg));
+                                        }
+                                    }
+                                }
+                            }
+
+                            if let Some((b, _)) = src.choose("button", &buttons) {
+                                if let InlineKeyboardButtonKind::CallbackData(callback) = &b.0.kind
+                                {
+                                    let cmds =
+                                        engine.handle_keyboard_responce(uid, b.1, callback, b.2);
+                                    handle_command_to_frontend(&mut front, uid, cmds)
+                                        .expect("no error in test");
+                                } else {
+                                    panic!("unexpected inline button kind: {:?}", b.0.kind);
+                                }
+                            }
+                        }
+                        "tick" => {}
+                        _ => panic!("meh"),
+                    };
+                });
+            }
         });
     }
 }

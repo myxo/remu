@@ -7,6 +7,9 @@ use crate::database::DataBase;
 use crate::engine::ProcessResult;
 use crate::helpers::*;
 
+pub const EXPECT_DURATION_MSG: &'static str = "Ok, now write time duration.";
+pub const EXPECT_TIME_MSG: &'static str = "Ok, now write the time of event";
+
 // FIXME: make struct derive from String
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 pub struct SendMessageCommand {
@@ -298,7 +301,7 @@ fn ready_process_keyboard(
         );
     } else if data.callback_data.starts_with("after") {
         let command = SendMessageCommand {
-            text: "Ok, now write time duration.".to_owned(),
+            text: EXPECT_DURATION_MSG.to_owned(),
         };
 
         return ProcessResult {
@@ -368,7 +371,7 @@ impl AtCalendar {
             let del_cmd = FrontendCommand::delete_message(data.msg_id);
             let keyboard_command = FrontendCommand::keyboard(KeyboardCommand {
                 action_type: KeyboardCommandType::Hour,
-                text: "Ok, now write the time of event".to_string(),
+                text: EXPECT_TIME_MSG.to_string(),
             });
             return ProcessResult {
                 frontend_command: vec![del_cmd, keyboard_command],
@@ -383,7 +386,7 @@ impl AtCalendar {
             // TODO: bot.send_message(chat_id, 'Ok, ' + date.strftime(r'%b %d') + '. Now write the time of event.')
             let keyboard_cmd = FrontendCommand::keyboard(KeyboardCommand {
                 action_type: KeyboardCommandType::Hour,
-                text: "Ok, now write the time of event".to_string(),
+                text: EXPECT_TIME_MSG.to_string(),
             });
             let delete_cmd = FrontendCommand::delete_message(data.msg_id);
             let now = if data.callback_data == "today" {
