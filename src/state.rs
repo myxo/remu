@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::database::DataBase;
 use crate::engine::ProcessResult;
 use crate::helpers::*;
+use crate::text_data;
 
 pub const EXPECT_DURATION_MSG: &'static str = "Ok, now write time duration.";
 pub const EXPECT_TIME_MSG: &'static str = "Ok, now write the time of event";
@@ -19,11 +20,11 @@ pub struct SendMessageCommand {
 // FIXME: remove clone trait
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub struct AtCalendarCommand {
-    action_type: String,
-    year: i32,
-    month: i32,
-    tz: i32,
-    edit_cur_msg: bool,
+    pub action_type: String,
+    pub year: i32,
+    pub month: i32,
+    pub tz: i32,
+    pub edit_cur_msg: bool,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -215,7 +216,7 @@ fn ready_process(data: TextEventData, now: DateTime<Utc>, db: &mut DataBase) -> 
     match data.input.as_ref() {
         "/help more" => {
             let command = SendMessageCommand {
-                text: "Detailed help message".to_owned(),
+                text: text_data::DETAILED_HELP_MESSAGE_RU.to_owned(),
             };
             ProcessResult {
                 frontend_command: vec![FrontendCommand::send(command)],
@@ -225,7 +226,7 @@ fn ready_process(data: TextEventData, now: DateTime<Utc>, db: &mut DataBase) -> 
 
         "/help" => {
             let command = SendMessageCommand {
-                text: "Simple help message".to_owned(),
+                text: text_data::MAIN_HELP_MESSAGE_RU.to_owned(),
             };
             ProcessResult {
                 frontend_command: vec![FrontendCommand::send(command)],

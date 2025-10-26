@@ -13,6 +13,7 @@ path = "src/remu.rs"
 
 [dependencies]
 chrono = "0.4"
+calendarize = "1.1"
 regex = "1.12"
 log = "0.4"
 rusqlite = "0.37"
