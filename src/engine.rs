@@ -105,10 +105,10 @@ impl Engine {
     pub fn handle_keyboard_responce(
         &mut self,
         uid: i64,
-        msg_id: i64,
+        msg_id: i32,
         call_data: &str,
         msg_text: &str,
-    ) -> Vec<FrontendCommand> {
+    ) -> Result<Vec<FrontendCommand>> {
         debug!("Handle Keyboard data : {}, text: {}", call_data, msg_text);
         let state = self.user_states.get(&(uid as i32)).unwrap();
         let data = KeyboardEventData {
@@ -129,7 +129,7 @@ impl Engine {
         if let Some(next_state) = next_state {
             self.user_states.insert(uid as i32, next_state);
         }
-        frontend_command
+        Ok(frontend_command)
     }
 
     fn stop(&mut self) {

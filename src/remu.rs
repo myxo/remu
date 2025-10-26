@@ -1,18 +1,12 @@
 use anyhow::{Context, Result};
-use log::{debug, info, warn};
-use std::sync::Arc;
-use teloxide::{
-    Bot,
-    dispatching::{HandlerExt, UpdateFilterExt},
-    dptree,
-    payloads::SendMessageSetters,
-    prelude::{Dispatcher, Requester, ResponseResult},
-    types::{
-        CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message, Recipient, Update,
-    },
-    utils::command::BotCommands,
+use frankenstein::{
+    TelegramApi,
+    client_ureq::Bot,
+    methods::{EditMessageReplyMarkupParams, GetUpdatesParams, SendMessageParams},
+    types::{InlineKeyboardButton, InlineKeyboardMarkup, ReplyMarkup},
+    updates::UpdateContent,
 };
-use tokio::sync::Mutex;
+use log::{debug, info, warn};
 
 use crate::state::FrontendCommand;
 
@@ -24,72 +18,7 @@ mod sql_query;
 pub mod state;
 pub mod time;
 
-#[derive(BotCommands, Clone)]
-#[command(
-    rename_rule = "lowercase",
-    description = "These commands are supported:"
-)]
-enum Command {
-    Help,
-    Start,
-}
-
-async fn answer_command(
-    //engine: &mut engine::Engine,
-    provider: Arc<Mutex<engine::Engine>>,
-    bot: Bot,
-    msg: Message,
-    cmd: Command,
-) -> ResponseResult<()> {
-    let mut engine = provider.lock().await;
-    match cmd {
-        Command::Help => {
-            bot.send_message(msg.chat.id, Command::descriptions().to_string())
-                .await?;
-        }
-        Command::Start => {
-            let user = msg.from.expect("TODO");
-            engine.add_user(
-                user.id.0 as i64,
-                user.username.as_ref().unwrap(),
-                msg.chat.id.0,
-                &user.first_name,
-                &user.last_name.as_ref().unwrap(),
-                -3,
-            );
-            // bot.send_message(msg.chat.id, "well, hello...").await?;
-        }
-    };
-    Ok(())
-}
-
-async fn answer(
-    provider: Arc<Mutex<engine::Engine>>,
-    bot: Bot,
-    msg: Message,
-) -> ResponseResult<()> {
-    let user = msg.from.as_ref().expect("message has user");
-    debug!("In a text handler, user: {}", user.first_name);
-    let mut engine = provider.lock().await;
-    let cmds = engine.handle_text_message(user.id.0 as i64, &msg.text().unwrap());
-    match cmds {
-        Ok(cmds) => {
-            let mut front = TelegramFrontend { bot: bot };
-            if let Err(e) = handle_command_to_frontend(&mut front, user.id.0 as i64, cmds) {
-                warn!("cannot handle frontend command: {e}");
-            }
-        }
-        Err(e) => {
-            bot.send_message(
-                user.id,
-                format!("Error while state machine processing:\n\n{e:#}"),
-            )
-            .await?;
-        }
-    };
-    Ok(())
-}
-
+/*
 async fn keyboard(
     provider: Arc<Mutex<engine::Engine>>,
     bot: Bot,
@@ -100,7 +29,7 @@ async fn keyboard(
     let mut engine = provider.lock().await;
     let cmds = engine.handle_keyboard_responce(
         user.id.0 as i64,
-        msg.id().0 as i64,
+        msg.id().0,
         &q.data.unwrap(),
         &msg.regular_message().unwrap().text().unwrap(),
     );
@@ -110,58 +39,115 @@ async fn keyboard(
     }
     Ok(())
 }
+*/
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
     info!("start");
 
     let clock = Box::new(crate::time::OsClock {});
-    let provider = Arc::new(Mutex::new(engine::Engine::new(
-        database::DbMode::Filesystem,
-        clock,
-    )));
+    let mut engine = engine::Engine::new(database::DbMode::Filesystem, clock);
     let api_key = std::fs::read_to_string("token.id")?;
-    let bot = Bot::new(api_key);
+    let bot = Bot::new(&api_key);
     let mut front = TelegramFrontend { bot: bot.clone() };
-    let provider_copy = provider.clone();
 
-    tokio::spawn(async move {
-        loop {
-            let mut engine = provider_copy.lock().await;
-            if engine.is_stop() {
-                break;
-            }
-            let events = engine.tick();
-            if !events.is_empty() {
-                warn!("TMP: tick events: {events:?}");
-            }
-            for ev in events {
-                if let Err(e) = handle_command_to_frontend(&mut front, ev.uid, ev.cmd_vec) {
-                    warn!("cannot handle frontend command: {e}");
+    let mut update_params = GetUpdatesParams::builder().build();
+    loop {
+        let result = bot.get_updates(&update_params);
+
+        match result {
+            Ok(response) => {
+                for update in response.result {
+                    // dbg!(&update);
+                    match update.content {
+                        UpdateContent::Message(message) => {
+                            /*
+                            // TODO: /start
+                            let user = msg.from.expect("TODO");
+                            engine.add_user(
+                                user.id.0 as i64,
+                                user.username.as_ref().unwrap(),
+                                msg.chat.id.0,
+                                &user.first_name,
+                                &user.last_name.as_ref().unwrap(),
+                                -3,
+                            );
+                            */
+
+                            let user = message.from.as_ref().expect("message has user");
+                            debug!("In a text handler, user: {}", user.first_name);
+                            let cmds =
+                                engine.handle_text_message(user.id as i64, &message.text.unwrap());
+                            match cmds {
+                                Ok(cmds) => {
+                                    if let Err(e) =
+                                        handle_command_to_frontend(&mut front, user.id as i64, cmds)
+                                    {
+                                        warn!("cannot handle frontend command: {e}");
+                                    }
+                                }
+                                Err(e) => {
+                                    front.send_message(
+                                        user.id as i64,
+                                        &format!("Error while state machine processing:\n\n{e:#}"),
+                                        None,
+                                    );
+                                }
+                            };
+                        }
+                        UpdateContent::CallbackQuery(callback_query) => {
+                            let user = &callback_query.from;
+                            let msg = callback_query.message.as_ref().unwrap();
+                            let msg = match msg {
+                                frankenstein::types::MaybeInaccessibleMessage::Message(message) => message,
+                                frankenstein::types::MaybeInaccessibleMessage::InaccessibleMessage(_) => {
+                                    warn!("getting InaccessibleMessage in callback query: {:?}", callback_query);
+                                    continue;
+                                }
+                            };
+
+                            debug!("In a keyboard handler, user: {}", user.first_name);
+                            let cmds = engine.handle_keyboard_responce(
+                                user.id as i64,
+                                msg.message_id,
+                                &callback_query.data.unwrap(),
+                                msg.text.as_ref().unwrap(),
+                            );
+                            match cmds {
+                                Ok(cmds) => {
+                                    if let Err(e) =
+                                        handle_command_to_frontend(&mut front, user.id as i64, cmds)
+                                    {
+                                        warn!("cannot handle frontend command: {e}");
+                                    }
+                                }
+                                Err(e) => {
+                                    front.send_message(
+                                        user.id as i64,
+                                        &format!("Error while state machine processing:\n\n{e:#}"),
+                                        None,
+                                    );
+                                }
+                            };
+                        }
+                        _ => {
+                            warn!("Unknown update type: {:?}", update)
+                        }
+                    }
+                    update_params.offset = Some(i64::from(update.update_id) + 1);
                 }
             }
-
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            Err(error) => {
+                println!("Failed to get updates: {error:?}");
+            }
         }
-    });
-
-    let handler = dptree::entry()
-        .branch(
-            Update::filter_message()
-                .filter_command::<Command>()
-                .endpoint(answer_command),
-        )
-        .branch(Update::filter_message().endpoint(answer))
-        .branch(Update::filter_callback_query().endpoint(keyboard));
-
-    Dispatcher::builder(bot, handler)
-        .dependencies(dptree::deps![provider])
-        .enable_ctrlc_handler()
-        .build()
-        .dispatch()
-        .await;
-    Ok(())
+        let events = engine.tick();
+        for ev in events {
+            if let Err(e) = handle_command_to_frontend(&mut front, ev.uid, ev.cmd_vec) {
+                warn!("cannot handle frontend command: {e}");
+            }
+        }
+    }
 }
 
 trait FrontendHandler {
@@ -171,6 +157,8 @@ trait FrontendHandler {
         msg: &str,
         keyboard: Option<InlineKeyboardMarkup>,
     ) -> Result<()>;
+
+    fn delete_keyboard(&mut self, uid: i64, msg_id: i32) -> Result<()>;
 }
 
 struct TelegramFrontend {
@@ -184,18 +172,32 @@ impl FrontendHandler for TelegramFrontend {
         msg: &str,
         keyboard: Option<InlineKeyboardMarkup>,
     ) -> Result<()> {
-        futures::executor::block_on(async {
-            let send = self
-                .bot
-                .send_message(Recipient::Id(teloxide::types::ChatId(uid)), msg);
-            let send = if let Some(keyboard) = keyboard {
-                send.reply_markup(keyboard)
-            } else {
-                send
-            };
-            send.await.context("cannot send telegram message")?;
-            Ok(())
-        })
+        debug!("TelegramFrontend: send_message");
+
+        let send_message_params = SendMessageParams::builder().chat_id(uid).text(msg);
+
+        let send_message_params = if let Some(keyboard) = keyboard {
+            send_message_params
+                .reply_markup(ReplyMarkup::InlineKeyboardMarkup(keyboard))
+                .build()
+        } else {
+            send_message_params.build()
+        };
+
+        self.bot
+            .send_message(&send_message_params)
+            .context("cannot send message")?;
+        Ok(())
+    }
+
+    fn delete_keyboard(&mut self, uid: i64, msg_id: i32) -> Result<()> {
+        debug!("delete keyboard for msg {msg_id}");
+        let params = EditMessageReplyMarkupParams::builder()
+            .chat_id(uid)
+            .message_id(msg_id)
+            .build();
+        self.bot.edit_message_reply_markup(&params)?;
+        Ok(())
     }
 }
 
@@ -225,7 +227,9 @@ fn handle_command_to_frontend(
                 }
             }
             state::FrontendCommand::delete_message(_) => todo!(),
-            state::FrontendCommand::delete_keyboard {} => todo!(),
+            state::FrontendCommand::delete_keyboard(msg_id) => {
+                front.delete_keyboard(uid, msg_id)?
+            }
         }
     }
     Ok(())
@@ -235,28 +239,53 @@ fn make_main_keyboard() -> InlineKeyboardMarkup {
     let mut keyboard: Vec<Vec<InlineKeyboardButton>> = vec![];
 
     keyboard.push(vec![
-        InlineKeyboardButton::callback("at".to_owned(), "at".to_owned()),
-        InlineKeyboardButton::callback("after".to_owned(), "after".to_owned()),
+        InlineKeyboardButton::builder()
+            .text("at")
+            .callback_data("at")
+            .build(),
+        InlineKeyboardButton::builder()
+            .text("after")
+            .callback_data("after")
+            .build(),
     ]);
 
     keyboard.push(vec![
-        InlineKeyboardButton::callback("5m".to_owned(), "5m".to_owned()),
-        InlineKeyboardButton::callback("30m".to_owned(), "30m".to_owned()),
-        InlineKeyboardButton::callback("1h".to_owned(), "1h".to_owned()),
+        InlineKeyboardButton::builder()
+            .text("5m")
+            .callback_data("5m")
+            .build(),
+        InlineKeyboardButton::builder()
+            .text("30m")
+            .callback_data("30m")
+            .build(),
+        InlineKeyboardButton::builder()
+            .text("1h")
+            .callback_data("1h")
+            .build(),
     ]);
 
     keyboard.push(vec![
-        InlineKeyboardButton::callback("3h".to_owned(), "3h".to_owned()),
-        InlineKeyboardButton::callback("1d".to_owned(), "1d".to_owned()),
-        InlineKeyboardButton::callback("Ok".to_owned(), "Ok".to_owned()),
+        InlineKeyboardButton::builder()
+            .text("3h")
+            .callback_data("3h")
+            .build(),
+        InlineKeyboardButton::builder()
+            .text("1d")
+            .callback_data("1d")
+            .build(),
+        InlineKeyboardButton::builder()
+            .text("Ok")
+            .callback_data("Ok")
+            .build(),
     ]);
 
-    InlineKeyboardMarkup::new(keyboard)
+    InlineKeyboardMarkup {
+        inline_keyboard: keyboard,
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use teloxide::types::InlineKeyboardButtonKind;
 
     use crate::state::EXPECT_DURATION_MSG;
 
@@ -288,6 +317,12 @@ mod tests {
                 msg: msg.to_owned(),
                 keyboard: keyboard,
             });
+            Ok(())
+        }
+
+        fn delete_keyboard(&mut self, _uid: i64, msg_id: i32) -> Result<()> {
+            self.chat[msg_id as usize].keyboard = None;
+            // TODO: error if no keyboard?
             Ok(())
         }
     }
@@ -354,26 +389,26 @@ mod tests {
                                 .expect("no error in test");
                         }
                         "user_push_button" => {
-                            let mut buttons = Vec::<(InlineKeyboardButton, i64, &str)>::new();
+                            let mut buttons = Vec::<(InlineKeyboardButton, i32, &str)>::new();
                             for (i, msg) in front.chat.iter().enumerate() {
                                 if let Some(k) = &msg.keyboard {
                                     for row in &k.inline_keyboard {
                                         for b in row.iter() {
-                                            buttons.push((b.clone(), i as i64, &msg.msg));
+                                            buttons.push((b.clone(), i as i32, &msg.msg));
                                         }
                                     }
                                 }
                             }
 
                             if let Some((b, _)) = src.choose("button", &buttons) {
-                                if let InlineKeyboardButtonKind::CallbackData(callback) = &b.0.kind
-                                {
-                                    let cmds =
-                                        engine.handle_keyboard_responce(uid, b.1, callback, b.2);
+                                if let Some(callback) = &b.0.callback_data {
+                                    let cmds = engine
+                                        .handle_keyboard_responce(uid, b.1, callback, b.2)
+                                        .expect("no error in test");
                                     handle_command_to_frontend(&mut front, uid, cmds)
                                         .expect("no error in test");
                                 } else {
-                                    panic!("unexpected inline button kind: {:?}", b.0.kind);
+                                    panic!("no callback data in button: {:?}", b.0);
                                 }
                             }
                         }

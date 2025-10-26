@@ -36,3 +36,6 @@ WantedBy=multi-user.target
 And ```systemctl start remu-bot```
 
 PS. This bot was created mainly to learn rust. Don't expect much from it. 
+
+## TODO:
+- [ ] react to edited messages

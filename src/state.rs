@@ -44,20 +44,20 @@ pub enum FrontendCommand {
     send(SendMessageCommand),
     calendar(AtCalendarCommand),
     keyboard(KeyboardCommand),
-    delete_message(i64),
-    delete_keyboard {},
+    delete_message(i32),
+    delete_keyboard(i32),
 }
 
 pub struct KeyboardEventData {
     pub uid: i64,
-    pub msg_id: i64,
+    pub msg_id: i32,
     pub callback_data: String,
     pub msg_text: String,
 }
 
 pub struct TextEventData {
     pub uid: i64,
-    pub msg_id: i64,
+    pub msg_id: i32,
     pub input: String,
 }
 
@@ -357,7 +357,7 @@ impl AtCalendar {
             new_command.year = year;
             new_command.edit_cur_msg = true;
 
-            // FIXME: check to_string result
+            // FIXME: chck to_string result
             return ProcessResult {
                 frontend_command: vec![FrontendCommand::calendar(new_command.clone())],
                 next_state: Some(UserState::AtCalendar(AtCalendar {
@@ -418,7 +418,7 @@ impl AtCalendar {
 }
 
 impl AtTimeHour {
-    fn proceed_next_stage(&self, hour: i32, msg_id: i64) -> ProcessResult {
+    fn proceed_next_stage(&self, hour: i32, msg_id: i32) -> ProcessResult {
         let del_cmd = FrontendCommand::delete_message(msg_id);
         let keyboard_command = FrontendCommand::keyboard(KeyboardCommand {
             action_type: KeyboardCommandType::Minute,
@@ -474,7 +474,7 @@ impl AtTimeMinute {
         &self,
         minute: i32,
         uid: i64,
-        msg_id: i64,
+        msg_id: i32,
         db: &mut DataBase,
         now: DateTime<Utc>,
     ) -> ProcessResult {
@@ -649,7 +649,7 @@ pub fn common_process_keyboard(data: &KeyboardEventData) -> Option<ProcessResult
         })
     } else if data.callback_data == "Ok" {
         Some(ProcessResult {
-            frontend_command: vec![FrontendCommand::delete_keyboard {}],
+            frontend_command: vec![FrontendCommand::delete_keyboard(data.msg_id)],
             next_state: None,
         })
     } else {
