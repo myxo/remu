@@ -1,6 +1,8 @@
 # Remu 
 Remu - telegram bot witch remind you about events. Backend written in rust, frontend (http api talker) in python with telebot library.
 
+> Note: right now I am in process of rewriting this project to 100% rust (and large refactoring), so I can launch it again.
+
 ## Run
 Create file token.id, put there your bot token_id and run
 ```
@@ -38,4 +40,5 @@ And ```systemctl start remu-bot```
 PS. This bot was created mainly to learn rust. Don't expect much from it. 
 
 ## TODO:
-- [ ] react to edited messages
+- [ ] highlight current day in calendar
+- [ ] react to edited messages (low)
