@@ -54,6 +54,22 @@ pub struct ProcessResult {
     pub next_state: Option<UserState>,
 }
 
+impl ProcessResult {
+    pub(crate) fn single(cmd: FrontendCommand, next: Option<UserState>) -> Self {
+        Self {
+            frontend_command: vec![cmd],
+            next_state: next,
+        }
+    }
+
+    pub(crate) fn msg_send(text: String, next: UserState) -> Self {
+        Self {
+            frontend_command: vec![FrontendCommand::send(SendMessageCommand { text })],
+            next_state: Some(next),
+        }
+    }
+}
+
 impl Engine {
     pub fn new(mode: DbMode, clock: Box<dyn Clock + Send>) -> Engine {
         info!("Initialize engine");
@@ -88,7 +104,7 @@ impl Engine {
             input: text_message.to_owned(),
         };
         debug!("current state: {}", state.str());
-        let result = state.process(data, self.clock.now(), &mut self.data_base);
+        let result = state.process(data, self.clock.now(), &mut self.data_base)?;
         let ProcessResult {
             frontend_command,
             next_state,
@@ -118,18 +134,36 @@ impl Engine {
             msg_text: msg_text.to_owned(),
         };
 
-        let result = match common_process_keyboard(&data) {
-            Some(res) => res,
-            None => state.process_keyboard(data, self.clock.now(), &mut self.data_base),
+        let result = match data.callback_data.as_ref() {
+            "ignore" => Ok(ProcessResult {
+                frontend_command: vec![],
+                next_state: None,
+            }),
+            "Ok" => Ok(ProcessResult {
+                frontend_command: vec![],
+                next_state: None,
+            }),
+            _ => state.process_keyboard(data, self.clock.now(), &mut self.data_base),
         };
-        let ProcessResult {
-            frontend_command,
-            next_state,
-        } = result;
-        if let Some(next_state) = next_state {
+        let (front_cmd, next) = match result {
+            Ok(ProcessResult {
+                mut frontend_command,
+                next_state,
+            }) => {
+                frontend_command.push(FrontendCommand::delete_keyboard(msg_id));
+                (frontend_command, next_state)
+            }
+            Err(e) => (
+                vec![FrontendCommand::send(SendMessageCommand {
+                    text: format!("error while processing keyboard, return to default state: {e}"),
+                })],
+                Some(UserState::ReadyToProcess),
+            ),
+        };
+        if let Some(next_state) = next {
             self.user_states.insert(uid as i32, next_state);
         }
-        Ok(frontend_command)
+        Ok(front_cmd)
     }
 
     fn stop(&mut self) {
