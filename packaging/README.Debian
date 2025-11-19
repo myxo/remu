@@ -1,0 +1,25 @@
+Remu Debian package
+====================
+
+The package installs the `remu` binary into `/usr/bin`, creates a dedicated
+`remu` system user, and ships a systemd service unit at
+`/lib/systemd/system/remu.service`. During installation a writable data
+directory is created at `/var/lib/remu` and owned by the `remu` user.
+
+For the bot to operate you must place your Telegram bot token inside
+`/var/lib/remu/token.id` (owned by the `remu` user). The service starts in that
+directory so the binary can read the token file directly.
+
+Optional environment overrides can be placed inside `/etc/remu/remu.env`. For
+example to adjust logging, create the file with `RUST_LOG=remu=info` and
+restart the service.
+
+After installing the package run:
+
+```
+sudo systemctl daemon-reload
+sudo systemctl enable --now remu.service
+```
+
+Removing the package stops the service but leaves `/var/lib/remu` and the
+`remu` user untouched so your reminders and token remain available.

@@ -1,0 +1,67 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev pkg-config
+
+      - name: Determine version
+        id: vars
+        run: |
+          ref="${GITHUB_REF_NAME}"
+          version="${ref#v}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: cargo fmt
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: cargo test
+        run: cargo test --all-targets
+
+      - name: cargo test (mock-time)
+        run: cargo test --all-targets --features mock-time
+
+      - name: cargo build --release
+        run: cargo build --release
+
+      - name: Build Debian package
+        env:
+          PKG_VERSION: ${{ steps.vars.outputs.version }}
+        run: scripts/build-deb.sh
+
+      - name: Locate package
+        id: package
+        env:
+          PKG_VERSION: ${{ steps.vars.outputs.version }}
+        run: |
+          ARCH=$(dpkg --print-architecture)
+          DEB_PATH="target/debian/remu_${PKG_VERSION}_${ARCH}.deb"
+          if [ ! -f "$DEB_PATH" ]; then
+              echo "Package $DEB_PATH not found" >&2
+              exit 1
+          fi
+          echo "path=$DEB_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.package.outputs.path }}

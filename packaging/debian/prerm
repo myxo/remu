@@ -1,0 +1,15 @@
+#!/bin/sh
+set -e
+
+SERVICE=remu.service
+
+if [ "$1" = "remove" ] || [ "$1" = "upgrade" ]; then
+    if command -v deb-systemd-helper >/dev/null 2>&1; then
+        deb-systemd-helper disable "$SERVICE" >/dev/null 2>&1 || true
+    fi
+    if command -v systemctl >/dev/null 2>&1; then
+        systemctl stop "$SERVICE" >/dev/null 2>&1 || true
+    fi
+fi
+
+exit 0
