@@ -5,7 +5,7 @@ mod tests {
 
     use crate::{
         FrontendHandler, database, engine, handle_command_to_frontend,
-        state::{EXPECT_DURATION_MSG, FrontendCommand},
+        state::{EXPECT_BUTTON_PUSH, EXPECT_DURATION_MSG, FrontendCommand},
     };
 
     struct Message {
@@ -83,6 +83,13 @@ mod tests {
         let make_duration_spec = || -> String {
             "5m".to_owned() // TODO: accept duration
         };
+
+        enum ExpectedNextAction {
+            None,
+            PushButton,
+            WriteDurationSpec,
+        }
+
         chaos_theory::check(|src| {
             if src.should_log() {
                 env_logger::Builder::from_env(
@@ -108,30 +115,57 @@ mod tests {
                 src.select("select", labels, |src, l, _| {
                     match l {
                         "user_write_msg" => {
-                            let need_answer_duration = front
+                            let expected_next = front
                                 .chat
                                 .last()
-                                .and_then(|last| Some(last.msg == EXPECT_DURATION_MSG))
-                                .unwrap_or(false);
+                                .and_then(|last| {
+                                    src.log_value("last_msg", &last.msg);
+                                    Some(if last.msg.starts_with(EXPECT_BUTTON_PUSH) {
+                                        ExpectedNextAction::PushButton
+                                    } else if last.msg == EXPECT_DURATION_MSG {
+                                        ExpectedNextAction::WriteDurationSpec
+                                    } else {
+                                        ExpectedNextAction::None
+                                    })
+                                })
+                                .unwrap_or(ExpectedNextAction::None);
 
-                            let msg = if need_answer_duration {
-                                if src.any("error_instead_of_duration") {
-                                    "non spec string".to_owned()
-                                } else {
-                                    make_duration_spec()
+                            let (msg, expect_error) = match expected_next {
+                                ExpectedNextAction::None => (new_msg(), false),
+                                ExpectedNextAction::PushButton => {
+                                    if src.any("error_instead_of_button_push") {
+                                        ("text instead of button".to_owned(), true)
+                                    } else {
+                                        return;
+                                    }
                                 }
-                            } else {
-                                if src.any("add_spec_prefix") {
-                                    make_duration_spec() + " " + &new_msg()
-                                } else {
-                                    new_msg()
+                                ExpectedNextAction::WriteDurationSpec => {
+                                    if src.any("error_instead_of_duration") {
+                                        ("non spec string for test".to_owned(), true)
+                                    } else {
+                                        (make_duration_spec(), false)
+                                    }
                                 }
                             };
 
                             src.log_value("msg", &msg);
-                            let cmds = engine
-                                .handle_text_message(uid, &msg)
-                                .expect("no error in test");
+                            let cmds = engine.handle_text_message(uid, &msg);
+
+                            let cmds = match cmds {
+                                Ok(cmds) => {
+                                    if expect_error {
+                                        panic!("expect error, but get commands {:?}", cmds);
+                                    }
+                                    cmds
+                                }
+                                Err(e) => {
+                                    if !expect_error {
+                                        panic!("unexpected error: {:#}", e);
+                                    }
+                                    return;
+                                }
+                            };
+
                             log_frontend_command(src, &cmds);
                             handle_command_to_frontend(&mut front, uid, cmds)
                                 .expect("no error in test");

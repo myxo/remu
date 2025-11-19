@@ -30,7 +30,8 @@ mod text_data;
 mod time;
 
 fn main() -> Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("remu=debug"))
+        .init();
     info!("start");
 
     let clock = Box::new(crate::time::OsClock {});
@@ -63,7 +64,6 @@ fn main() -> Result<()> {
                             */
 
                             let user = message.from.as_ref().expect("message has user");
-                            debug!("In a text handler, user: {}", user.first_name);
                             let cmds =
                                 engine.handle_text_message(user.id as i64, &message.text.unwrap());
                             match cmds {
@@ -190,15 +190,15 @@ impl FrontendHandler for TelegramFrontend {
     fn edit_message(
         &mut self,
         uid: i64,
-        mid: i32,
+        msg_id: i32,
         msg: &str,
         keyboard: Option<InlineKeyboardMarkup>,
     ) -> Result<()> {
-        debug!("TelegramFrontend: edit_message");
+        debug!("TelegramFrontend: edit_message {msg_id}");
 
         let send_message_params = EditMessageTextParams::builder()
             .chat_id(uid)
-            .message_id(mid)
+            .message_id(msg_id)
             .text(msg);
 
         let params = if let Some(keyboard) = keyboard {
@@ -211,7 +211,7 @@ impl FrontendHandler for TelegramFrontend {
     }
 
     fn delete_keyboard(&mut self, uid: i64, msg_id: i32) -> Result<()> {
-        debug!("delete keyboard for msg {msg_id}");
+        debug!("TelegramFrontend: delete_keyboard at msg {msg_id}");
         let params = EditMessageReplyMarkupParams::builder()
             .chat_id(uid)
             .message_id(msg_id)
@@ -221,7 +221,7 @@ impl FrontendHandler for TelegramFrontend {
     }
 
     fn delete_message(&mut self, uid: i64, msg_id: i32) -> Result<()> {
-        debug!("delete message");
+        debug!("TelegramFrontend: delete_message {msg_id}");
         let params = DeleteMessageParams::builder()
             .chat_id(uid)
             .message_id(msg_id)
@@ -243,17 +243,15 @@ fn handle_command_to_frontend(
                 front.send_message(uid, &send_message_command.text, None)?;
             }
             state::FrontendCommand::calendar(at_calendar_command) => {
-                if at_calendar_command.edit_cur_msg {
-                    //
+                let msg = &at_calendar_command.message;
+                let keyboard = Some(make_calendar_keyboard(
+                    at_calendar_command.year,
+                    at_calendar_command.month as u32,
+                ));
+                if let Some(msg_id) = at_calendar_command.msg_id {
+                    front.edit_message(uid, msg_id, msg, keyboard)?;
                 } else {
-                    front.send_message(
-                        uid,
-                        "Please, shoose a data",
-                        Some(make_calendar_keyboard(
-                            at_calendar_command.year,
-                            at_calendar_command.month as u32,
-                        )),
-                    )?;
+                    front.send_message(uid, msg, keyboard)?;
                 }
             }
             state::FrontendCommand::keyboard(keyboard_command) => {
@@ -281,7 +279,7 @@ fn handle_command_to_frontend(
                     }
                 }
             }
-            state::FrontendCommand::delete_message(_) => todo!(),
+            state::FrontendCommand::delete_message(msg_id) => front.delete_message(uid, msg_id)?,
             state::FrontendCommand::delete_keyboard(msg_id) => {
                 front.delete_keyboard(uid, msg_id)?
             }

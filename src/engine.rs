@@ -92,8 +92,7 @@ impl Engine {
         uid: i64,
         text_message: &str,
     ) -> Result<Vec<FrontendCommand>> {
-        debug!("Handle text message : {}", text_message);
-
+        info!("handle text message for {uid}");
         let state = self
             .user_states
             .get(&(uid as i32))
@@ -125,6 +124,7 @@ impl Engine {
         call_data: &str,
         msg_text: &str,
     ) -> Result<Vec<FrontendCommand>> {
+        info!("handle button push for {uid}");
         debug!("Handle Keyboard data : {}, text: {}", call_data, msg_text);
         let state = self.user_states.get(&(uid as i32)).unwrap();
         let data = KeyboardEventData {
@@ -136,23 +136,20 @@ impl Engine {
 
         let result = match data.callback_data.as_ref() {
             "ignore" => Ok(ProcessResult {
-                frontend_command: vec![],
+                frontend_command: vec![FrontendCommand::delete_keyboard(msg_id)],
                 next_state: None,
             }),
             "Ok" => Ok(ProcessResult {
-                frontend_command: vec![],
+                frontend_command: vec![FrontendCommand::delete_keyboard(msg_id)],
                 next_state: None,
             }),
             _ => state.process_keyboard(data, self.clock.now(), &mut self.data_base),
         };
         let (front_cmd, next) = match result {
             Ok(ProcessResult {
-                mut frontend_command,
+                frontend_command,
                 next_state,
-            }) => {
-                frontend_command.push(FrontendCommand::delete_keyboard(msg_id));
-                (frontend_command, next_state)
-            }
+            }) => (frontend_command, next_state),
             Err(e) => (
                 vec![FrontendCommand::send(SendMessageCommand {
                     text: format!("error while processing keyboard, return to default state: {e}"),
@@ -163,6 +160,7 @@ impl Engine {
         if let Some(next_state) = next {
             self.user_states.insert(uid as i32, next_state);
         }
+        debug!("send frontend_commands: {:?}", front_cmd);
         Ok(front_cmd)
     }
 

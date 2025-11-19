@@ -12,6 +12,7 @@ use crate::text_data;
 
 pub const EXPECT_DURATION_MSG: &'static str = "Ok, now write time duration.";
 pub const EXPECT_TIME_MSG: &'static str = "Ok, now write the time of event";
+pub const EXPECT_BUTTON_PUSH: &'static str = "Ok, now choose";
 
 // FIXME: make struct derive from String
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -26,7 +27,8 @@ pub struct AtCalendarCommand {
     pub year: i32,
     pub month: i32,
     pub tz: i32,
-    pub edit_cur_msg: bool,
+    pub message: String,
+    pub msg_id: Option<i32>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -85,7 +87,7 @@ impl UserState {
         debug!("UserState::process");
         match self {
             UserState::ReadyToProcess => ready_process(data, now, db),
-            UserState::AtCalendar(_) => panic!("AtCalendar state cannot handle text input"),
+            UserState::AtCalendar(_) => Err(anyhow!("AtCalendar state cannot handle text input")),
             UserState::AtTimeHour(state) => Ok(state.process(data)),
             UserState::AtTimeMinute(state) => state.process(data, now, db),
             UserState::AtTimeText(state) => state.process(data, now, db),
@@ -106,7 +108,7 @@ impl UserState {
             UserState::AtTimeHour(state) => Ok(state.process_keyboard(data)),
             UserState::AtTimeMinute(state) => state.process_keyboard(data, now, db),
             UserState::AtTimeText(state) => Ok(state.process_keyboard()),
-            UserState::AfterInput(state) => Ok(state.process_keyboard()),
+            UserState::AfterInput(_) => Err(anyhow!("expect not button, but text")),
             UserState::RepDeleteChoose(state) => Ok(state.process_keyboard()),
         }
     }
@@ -168,8 +170,9 @@ pub struct RepDeleteChoose {
 
 fn ready_start_calendar(
     id: i64,
-    input: &str,
+    _input: &str,
     msg_text: Option<String>,
+    msg_id: Option<i32>,
     db: &mut DataBase,
     now: DateTime<Utc>,
 ) -> ProcessResult {
@@ -177,14 +180,14 @@ fn ready_start_calendar(
     let tz = db.get_user_timezone(id);
     let dt = chrono::Duration::seconds((tz as i64) * 60 * 60);
     let prev = now - dt;
-    let edit_cur_msg: bool = !input.starts_with("/at");
 
     let command = AtCalendarCommand {
         action_type: "calendar".to_string(),
         month: prev.month() as i32,
         year: prev.year() as i32,
         tz,
-        edit_cur_msg,
+        msg_id,
+        message: EXPECT_BUTTON_PUSH.to_string() + " date",
     };
 
     ProcessResult::single(
@@ -203,10 +206,7 @@ fn ready_process(
 ) -> Result<ProcessResult> {
     if !data.input.starts_with('/') {
         if let Some(ret_text) = process_text_command(data.uid, &data.input, now, db) {
-            return Ok(ProcessResult::msg_send(
-                ret_text,
-                UserState::ReadyToProcess,
-            ));
+            return Ok(ProcessResult::msg_send(ret_text, UserState::ReadyToProcess));
         } else {
             let command = KeyboardCommand {
                 action_type: KeyboardCommandType::Main,
@@ -243,7 +243,7 @@ fn ready_process(
             ProcessResult::msg_send(ret_text, UserState::ReadyToProcess)
         }
 
-        "/at" => ready_start_calendar(data.uid, &data.input, None, db, now),
+        "/at" => ready_start_calendar(data.uid, &data.input, None, None, db, now),
 
         "/delete_rep" => {
             let (list_str, list_id) = get_rep_event_list(data.uid, db);
@@ -279,6 +279,7 @@ fn ready_process_keyboard(
             data.uid,
             &data.callback_data,
             Some(data.msg_text.to_owned()),
+            Some(data.msg_id),
             db,
             now,
         ))
@@ -294,10 +295,7 @@ fn ready_process_keyboard(
 
         if let Some(ret_text) = process_text_command(data.uid, &cmd_option, now, db) {
             let ret_text = format!("Resulting command:\n{}\n{}", cmd_option, ret_text);
-            Ok(ProcessResult::msg_send(
-                ret_text,
-                UserState::ReadyToProcess,
-            ))
+            Ok(ProcessResult::msg_send(ret_text, UserState::ReadyToProcess))
         } else {
             warn!("incorrect query data, merged command: {}", cmd_option);
             bail!("incorrect query data")
@@ -328,7 +326,7 @@ impl AtCalendar {
             let mut new_command = self.command.clone();
             new_command.month = month;
             new_command.year = year;
-            new_command.edit_cur_msg = true;
+            new_command.msg_id = Some(data.msg_id);
 
             // FIXME: chck to_string result
             return ProcessResult::single(
@@ -454,10 +452,7 @@ impl AtTimeMinute {
 
             let ret_text = process_text_command(uid, &result_command, now, db)
                 .ok_or(anyhow!("expected time format spec"))?;
-            Ok(ProcessResult::msg_send(
-                ret_text,
-                UserState::ReadyToProcess,
-            ))
+            Ok(ProcessResult::msg_send(ret_text, UserState::ReadyToProcess))
         } else {
             let send_command = FrontendCommand::send(SendMessageCommand {
                 text: "Now write event message".to_owned(),
@@ -526,10 +521,7 @@ impl AtTimeText {
 
         let ret_text = process_text_command(data.uid, &result_command, now, db)
             .ok_or(anyhow!("expect time spec format"))?;
-        Ok(ProcessResult::msg_send(
-            ret_text,
-            UserState::ReadyToProcess,
-        ))
+        Ok(ProcessResult::msg_send(ret_text, UserState::ReadyToProcess))
     }
 
     fn process_keyboard(&self) -> ProcessResult {
@@ -557,10 +549,6 @@ impl AfterInput {
             format!("Resulting command:\n{message}\n{ret_text}"),
             UserState::ReadyToProcess,
         ))
-    }
-
-    fn process_keyboard(&self) -> ProcessResult {
-        panic!("AfterInput::process_keyboard should not be called")
     }
 }
 
