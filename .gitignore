@@ -1,16 +1,11 @@
 /target/
 **/*.rs.bk
 .vscode/
-voice/
 __pycache__/
 
 Cargo.lock
-libremu_backend.so
 log.txt
 log-engine.txt
 token.id
 chat.id
-yandex_api.id
 database.db
-config.py
-remu-bot.service
