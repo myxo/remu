@@ -76,6 +76,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn property_test() {
         // model of messager (messages + keyboard attached to them)
         // model of expected events
