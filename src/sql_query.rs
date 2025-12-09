@@ -29,8 +29,7 @@ pub const CREATE_REP_EVENT_TABLE: &str = "CREATE TABLE IF NOT EXISTS scheduled_e
 
 // SQL user --------------------------------------------
 
-pub const INSERT_USER: &str =
-    "INSERT INTO user(uid, username, first_name, last_name, chat_id, timezone) VALUES (?1, ?2, ?3, ?4, ?5, ?6);";
+pub const INSERT_USER: &str = "INSERT INTO user(uid, username, first_name, last_name, chat_id, timezone) VALUES (?1, ?2, ?3, ?4, ?5, ?6);";
 
 pub const GET_USER_TIMEZONE: &str = "SELECT timezone FROM user WHERE uid = ?1;";
 
@@ -51,8 +50,7 @@ pub const DELETE_FROM_ACTIVE_EVENT_BY_PARENT_ID: &str =
 
 pub const MIN_TIMESTAMP_FROM_ACTIVE_EVENT: &str = "SELECT min(event_time) FROM active_event;";
 
-pub const SELECT_ALL_ACTIVE_EVENT_BY_UID_LIMIT: &str =
-    "SELECT id, event_text, event_time FROM active_event WHERE uid = ?1 ORDER BY event_time LIMIT 20;";
+pub const SELECT_ALL_ACTIVE_EVENT_BY_UID_LIMIT: &str = "SELECT id, event_text, event_time FROM active_event WHERE uid = ?1 ORDER BY event_time LIMIT 20;";
 
 // SQL rep events ------------------------------------------------
 
@@ -64,5 +62,4 @@ pub const SELECT_REP_BY_ID: &str =
 
 pub const DELETE_FROM_REP_BY_ID: &str = "DELETE FROM scheduled_event WHERE id = ?1;";
 
-pub const SELECT_ALL_REP_BY_UID_LIMIT: &str =
-    "SELECT id, event_text, event_time, event_wait FROM scheduled_event WHERE uid = ?1 ORDER BY event_time LIMIT 20;";
+pub const SELECT_ALL_REP_BY_UID_LIMIT: &str = "SELECT id, event_text, event_time, event_wait FROM scheduled_event WHERE uid = ?1 ORDER BY event_time LIMIT 20;";
