@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use log::{debug, error, info};
+use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time;
@@ -160,13 +160,6 @@ impl Engine {
         Ok(front_cmd)
     }
 
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "Currently only used in tests and onboarding wiring"
-        )
-    )]
     pub fn add_user(
         &mut self,
         uid: i64,
@@ -175,7 +168,7 @@ impl Engine {
         first_name: &str,
         last_name: &str,
         tz: i32,
-    ) {
+    ) -> Result<()> {
         info!("Add new user id - {}, username - {}", uid, username);
         let user_info = UserInfo {
             uid,
@@ -185,16 +178,10 @@ impl Engine {
             last_name,
             tz,
         };
-        match self.data_base.add_user(user_info) {
-            Ok(_) => {
-                self.user_states
-                    .insert(uid as i32, UserState::ReadyToProcess);
-            }
-            Err(err_msg) => error!(
-                "Can't insert user in db. UID - <{}>, username - <{}>, chat_id - <{}>. Reason: {}",
-                uid, username, chat_id, err_msg
-            ),
-        };
+        self.data_base.add_user(user_info)?;
+        self.user_states
+            .insert(uid as i32, UserState::ReadyToProcess);
+        Ok(())
     }
 
     pub fn get_user_chat_id_all(&self) -> Vec<i32> {
