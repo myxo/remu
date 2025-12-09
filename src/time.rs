@@ -9,7 +9,7 @@ pub struct OsClock {}
 
 impl Clock for OsClock {
     fn now(&self) -> DateTime<Utc> {
-        return Utc::now();
+        Utc::now()
     }
 
     fn set_time(&mut self, _: DateTime<Utc>) {
@@ -23,15 +23,15 @@ pub struct MockClock {
 
 impl MockClock {
     pub fn new(start: DateTime<Utc>) -> MockClock {
-        return MockClock {
+        MockClock {
             currect_time: start,
-        };
+        }
     }
 }
 
 impl Clock for MockClock {
     fn now(&self) -> DateTime<Utc> {
-        return self.currect_time;
+        self.currect_time
     }
 
     fn set_time(&mut self, t: DateTime<Utc>) {
