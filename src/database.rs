@@ -10,6 +10,7 @@ pub struct DataBase {
 }
 
 pub enum DbMode {
+    #[cfg_attr(not(test), expect(dead_code, reason = "Used only in tests"))]
     InMemory,
     Filesystem,
 }

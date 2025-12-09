@@ -93,7 +93,7 @@ fn try_parse_for(command_line: &str, now: DateTime<Utc>) -> Option<Command> {
     }))
 }
 
-fn try_parse_rep(command_line: &String, now: DateTime<Utc>, user_timezone: i32) -> Option<Command> {
+fn try_parse_rep(command_line: &str, now: DateTime<Utc>, user_timezone: i32) -> Option<Command> {
     let reg = format!(
         r"^rep\s*{}\s+{}\s+{}(?P<divider> )(?P<main_text>.*)",
         MOMENT_DAY_REGEX, MOMENT_TIME_REGEX, DURATION_REGEX
@@ -164,12 +164,10 @@ mod tests {
         let command = String::from("1d2h3m4s");
         let text = "some text";
         let command_text = command + " " + text;
-        let dt = chrono::Duration::seconds(
-            (1 as i64) * (60*60*24)  // days
-            + (2 as i64) * (60*60)   // hours
-            + (3 as i64) * 60        // minutes
-            + (4 as i64), // seconds
-        );
+        let dt = chrono::Duration::days(1)
+            + chrono::Duration::hours(2)
+            + chrono::Duration::minutes(3)
+            + chrono::Duration::seconds(4);
         let now = Utc::now();
         let result = try_parse_for(&command_text, now);
         assert!(result.is_some());
@@ -187,12 +185,7 @@ mod tests {
         let command = String::from("2h30m");
         let text = "some text";
         let command_text = command + " " + text;
-        let dt = chrono::Duration::seconds(
-            (0 as i64) * (60*60*24)  // days
-            + (2 as i64) * (60*60)   // hours
-            + (30 as i64) * 60       // minutes
-            + (0 as i64), // seconds
-        );
+        let dt = chrono::Duration::hours(2) + chrono::Duration::minutes(30);
         let now = Utc::now();
         let result = try_parse_for(&command_text, now);
         assert!(result.is_some());
@@ -352,12 +345,7 @@ mod tests {
         let t = Utc
             .with_ymd_and_hms(now.year(), 10, 6, 10 - 3, 0, 0)
             .unwrap();
-        let dt = chrono::Duration::seconds(
-            (0 as i64) * (60*60*24)  // days
-            + (0 as i64) * (60*60)      // hours
-            + (5 as i64) * 60           // minutes
-            + (0 as i64), // seconds
-        );
+        let dt = chrono::Duration::minutes(5);
         let result = try_parse_rep(&command_text, now, -3);
         assert!(result.is_some());
         match result.unwrap() {

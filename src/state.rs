@@ -554,19 +554,16 @@ impl AfterInput {
 
 impl RepDeleteChoose {
     fn process(&self, data: TextEventData, db: &mut DataBase) -> ProcessResult {
-        let ev_to_del: i32;
-        match data.input.parse::<i32>() {
+        let ev_to_del: i32 = match data.input.parse::<i32>() {
             // FIXME: ev - 1 ?
-            Ok(ev) => {
-                ev_to_del = ev;
-            }
+            Ok(ev) => ev,
             Err(_) => {
                 return ProcessResult::msg_send(
                     "You should write number. Operation aborted.".to_string(),
                     UserState::ReadyToProcess,
                 );
             }
-        }
+        };
         if ev_to_del < 0 || ev_to_del >= self.list_id.len() as i32 {
             return ProcessResult::msg_send(
                 "Number is out of limit. Operation aborted.".to_string(),
