@@ -10,6 +10,7 @@ pub struct DataBase {
 }
 
 pub enum DbMode {
+    #[cfg_attr(not(test), expect(dead_code, reason = "Used only in tests"))]
     InMemory,
     Filesystem,
 }
@@ -84,7 +85,7 @@ impl DataBase {
                 .conn
                 .prepare(sql_q::SELECT_ACTIVE_EVENTS_LESS_BY_TIMESTAMP)
                 .expect("error in sql query");
-            let mut rows = (stmt.query(&[&time.timestamp()])).unwrap();
+            let mut rows = (stmt.query([&time.timestamp()])).unwrap();
 
             while let Ok(Some(row)) = rows.next() {
                 let id: i64 = row.get(0).unwrap();
@@ -96,7 +97,7 @@ impl DataBase {
                         .expect("don't have time"),
                 });
                 self.conn
-                    .execute(sql_q::DELETE_FROM_ACTIVE_EVENT_BY_ID, &[&id])
+                    .execute(sql_q::DELETE_FROM_ACTIVE_EVENT_BY_ID, [&id])
                     .expect("Cannot remove from one_time_event table");
                 let parent_id = row.get(3).unwrap();
                 let uid = row.get(4).unwrap();
@@ -109,7 +110,7 @@ impl DataBase {
             if *parent_id != -1 {
                 let event = self
                     .conn
-                    .query_row(sql_q::SELECT_REP_BY_ID, &[&parent_id], |row| {
+                    .query_row(sql_q::SELECT_REP_BY_ID, [&parent_id], |row| {
                         Ok(create_nearest_active_event_from_repetitive(
                             row.get(2).unwrap(),
                             row.get(3).unwrap(),
@@ -145,7 +146,7 @@ impl DataBase {
             .prepare(sql_q::SELECT_ALL_ACTIVE_EVENT_BY_UID_LIMIT)
             .expect("error in sql connection prepare");
         let command_iter = stmt
-            .query_map(&[&uid], |row| {
+            .query_map([&uid], |row| {
                 Ok(Command::OneTimeEvent(OneTimeEventImpl {
                     event_text: row.get(1).unwrap(),
                     event_time: Utc
@@ -171,7 +172,7 @@ impl DataBase {
             .prepare(sql_q::SELECT_ALL_REP_BY_UID_LIMIT)
             .expect("error in sql connection prepare");
         let command_iter = stmt
-            .query_map(&[&uid], |row| {
+            .query_map([&uid], |row| {
                 Ok((
                     Command::RepetitiveEvent(RepetitiveEventImpl {
                         event_text: row.get(1).unwrap(),
@@ -196,14 +197,14 @@ impl DataBase {
     pub fn delete_rep_event(&mut self, event_id: i64) -> bool {
         if self
             .conn
-            .execute(sql_q::DELETE_FROM_REP_BY_ID, &[&event_id])
+            .execute(sql_q::DELETE_FROM_REP_BY_ID, [&event_id])
             .is_err()
         {
             return false;
         }
         if self
             .conn
-            .execute(sql_q::DELETE_FROM_ACTIVE_EVENT_BY_PARENT_ID, &[&event_id])
+            .execute(sql_q::DELETE_FROM_ACTIVE_EVENT_BY_PARENT_ID, [&event_id])
             .is_err()
         {
             return false;
@@ -214,7 +215,7 @@ impl DataBase {
     pub fn get_user_timezone(&self, uid: i64) -> i32 {
         let row = self
             .conn
-            .query_row(sql_q::GET_USER_TIMEZONE, &[&uid], |row| row.get(0));
+            .query_row(sql_q::GET_USER_TIMEZONE, [&uid], |row| row.get(0));
         row.unwrap()
     }
 
@@ -296,7 +297,7 @@ fn create_nearest_active_event_from_repetitive(
         .expect("don't have time");
 
     while event_time < now {
-        event_time = event_time + dt;
+        event_time += dt;
     }
     OneTimeEventImpl {
         event_text: text,

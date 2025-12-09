@@ -1,4 +1,4 @@
-pub(crate) const MAIN_HELP_MESSAGE_RU : &'static str = r"
+pub(crate) const MAIN_HELP_MESSAGE_RU: &str = r"
 Remu - бот для напоминания о ваших событиях. Событие - это просто текст, который Remu напишет вам в заданное время.
 Самый простой способ начать работу - напишите что-нибудь. 
 
@@ -9,7 +9,7 @@ Remu - бот для напоминания о ваших событиях. Со
 Если вы хотите задать событие точнее или научится устанавливать повторяющиеся события, напишите /help more
 ";
 
-pub(crate) const DETAILED_HELP_MESSAGE_RU: &'static str = r"
+pub(crate) const DETAILED_HELP_MESSAGE_RU: &str = r"
 Хотите узнать о событиях более подробно? Хорошо!
 
 В данный момент есть 2 типа событий: единичные и повторяющиеся. 
@@ -46,8 +46,6 @@ rep 23-12 11.30 7d позвони маме
 
 ";
 
-
-
 // Command list to BotFather to copy-paste
 /*
 list - list of all reminders
@@ -55,4 +53,3 @@ help - view help
 at - "at" command helper
 delete_rep - delete repetitive event
 */
-

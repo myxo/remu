@@ -2,7 +2,6 @@ use anyhow::{Context, Result};
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time;
 
 use crate::command::*;
@@ -10,6 +9,7 @@ use crate::database::{DataBase, DbMode, UserInfo};
 use crate::state::*;
 use crate::time::Clock;
 
+#[expect(dead_code)]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum CmdToEngine {
     AddUser {
@@ -44,7 +44,6 @@ pub struct CmdFromEngine {
 
 pub struct Engine {
     data_base: DataBase,
-    stop_loop: AtomicBool,
     user_states: HashMap<i32, UserState>,
     clock: Box<dyn Clock + Send>,
 }
@@ -74,7 +73,6 @@ impl Engine {
     pub fn new(mode: DbMode, clock: Box<dyn Clock + Send>) -> Engine {
         info!("Initialize engine");
         let mut engine = Engine {
-            stop_loop: AtomicBool::new(false),
             data_base: DataBase::new(mode),
             user_states: HashMap::new(),
             clock,
@@ -86,7 +84,6 @@ impl Engine {
         engine
     }
 
-    #[must_use]
     pub fn handle_text_message(
         &mut self,
         uid: i64,
@@ -116,7 +113,6 @@ impl Engine {
         Ok(frontend_command)
     }
 
-    #[must_use]
     pub fn handle_keyboard_responce(
         &mut self,
         uid: i64,
@@ -164,15 +160,13 @@ impl Engine {
         Ok(front_cmd)
     }
 
-    fn stop(&mut self) {
-        info!("Stoping engine");
-        self.stop_loop.store(false, Ordering::Relaxed);
-    }
-
-    pub fn is_stop(&self) -> bool {
-        self.stop_loop.load(Ordering::Relaxed)
-    }
-
+    #[cfg_attr(
+        not(test),
+        expect(
+            dead_code,
+            reason = "Currently only used in tests and onboarding wiring"
+        )
+    )]
     pub fn add_user(
         &mut self,
         uid: i64,
@@ -230,6 +224,7 @@ impl Engine {
         result
     }
 
+    #[expect(dead_code, reason = "Used for future wake scheduling loop")]
     fn get_time_until_next_wakeup(&self) -> std::time::Duration {
         if let Some(ts) = self.data_base.get_nearest_wakeup() {
             ts.signed_duration_since(self.clock.now())

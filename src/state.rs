@@ -10,9 +10,9 @@ use crate::engine::ProcessResult;
 use crate::helpers::*;
 use crate::text_data;
 
-pub const EXPECT_DURATION_MSG: &'static str = "Ok, now write time duration.";
-pub const EXPECT_TIME_MSG: &'static str = "Ok, now write the time of event";
-pub const EXPECT_BUTTON_PUSH: &'static str = "Ok, now choose";
+pub const EXPECT_DURATION_MSG: &str = "Ok, now write time duration.";
+pub const EXPECT_TIME_MSG: &str = "Ok, now write the time of event";
+pub const EXPECT_BUTTON_PUSH: &str = "Ok, now choose";
 
 // FIXME: make struct derive from String
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -184,7 +184,7 @@ fn ready_start_calendar(
     let command = AtCalendarCommand {
         action_type: "calendar".to_string(),
         month: prev.month() as i32,
-        year: prev.year() as i32,
+        year: prev.year(),
         tz,
         msg_id,
         message: EXPECT_BUTTON_PUSH.to_string() + " date",
@@ -554,19 +554,16 @@ impl AfterInput {
 
 impl RepDeleteChoose {
     fn process(&self, data: TextEventData, db: &mut DataBase) -> ProcessResult {
-        let ev_to_del: i32;
-        match data.input.parse::<i32>() {
+        let ev_to_del: i32 = match data.input.parse::<i32>() {
             // FIXME: ev - 1 ?
-            Ok(ev) => {
-                ev_to_del = ev;
-            }
+            Ok(ev) => ev,
             Err(_) => {
                 return ProcessResult::msg_send(
                     "You should write number. Operation aborted.".to_string(),
                     UserState::ReadyToProcess,
                 );
             }
-        }
+        };
         if ev_to_del < 0 || ev_to_del >= self.list_id.len() as i32 {
             return ProcessResult::msg_send(
                 "Number is out of limit. Operation aborted.".to_string(),

@@ -1,0 +1,37 @@
+#!/bin/sh
+set -e
+
+APP_USER=remu
+APP_GROUP=remu
+DATA_DIR=/var/lib/remu
+ENV_DIR=/etc/remu
+SERVICE=remu.service
+
+if ! getent group "$APP_GROUP" >/dev/null 2>&1; then
+    addgroup --system "$APP_GROUP" >/dev/null
+fi
+
+if ! id "$APP_USER" >/dev/null 2>&1; then
+    adduser \
+        --system \
+        --ingroup "$APP_GROUP" \
+        --home "$DATA_DIR" \
+        --no-create-home \
+        --disabled-login \
+        --shell /usr/sbin/nologin \
+        "$APP_USER" >/dev/null
+fi
+
+mkdir -p "$DATA_DIR" "$ENV_DIR"
+chown "$APP_USER:$APP_GROUP" "$DATA_DIR"
+chmod 750 "$DATA_DIR"
+
+if command -v deb-systemd-helper >/dev/null 2>&1; then
+    deb-systemd-helper enable "$SERVICE" >/dev/null 2>&1 || true
+fi
+
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl daemon-reload >/dev/null 2>&1 || true
+fi
+
+exit 0

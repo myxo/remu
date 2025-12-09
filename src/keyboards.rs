@@ -4,24 +4,22 @@ use frankenstein::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 
 #[rustfmt::skip]
 pub(crate) fn make_main_action_keyboard() -> InlineKeyboardMarkup {
-    let mut keyboard: Vec<Vec<InlineKeyboardButton>> = vec![];
-
-    keyboard.push(vec![
-        InlineKeyboardButton::builder().text("at").callback_data("at").build(),
-        InlineKeyboardButton::builder().text("after").callback_data("after").build(),
-    ]);
-
-    keyboard.push(vec![
-        InlineKeyboardButton::builder().text("5m").callback_data("5m").build(),
-        InlineKeyboardButton::builder().text("30m").callback_data("30m").build(),
-        InlineKeyboardButton::builder().text("1h").callback_data("1h").build(),
-    ]);
-
-    keyboard.push(vec![
-        InlineKeyboardButton::builder().text("3h").callback_data("3h").build(),
-        InlineKeyboardButton::builder().text("1d").callback_data("1d").build(),
-        InlineKeyboardButton::builder().text("Ok").callback_data("Ok").build(),
-    ]);
+    let keyboard: Vec<Vec<InlineKeyboardButton>> = vec![
+        vec![
+            InlineKeyboardButton::builder().text("at").callback_data("at").build(),
+            InlineKeyboardButton::builder().text("after").callback_data("after").build(),
+        ],
+        vec![
+            InlineKeyboardButton::builder().text("5m").callback_data("5m").build(),
+            InlineKeyboardButton::builder().text("30m").callback_data("30m").build(),
+            InlineKeyboardButton::builder().text("1h").callback_data("1h").build(),
+        ],
+        vec![
+            InlineKeyboardButton::builder().text("3h").callback_data("3h").build(),
+            InlineKeyboardButton::builder().text("1d").callback_data("1d").build(),
+            InlineKeyboardButton::builder().text("Ok").callback_data("Ok").build(),
+        ],
+    ];
 
     InlineKeyboardMarkup {
         inline_keyboard: keyboard,
@@ -131,14 +129,12 @@ pub(crate) fn make_hour_keyboard() -> InlineKeyboardMarkup {
 
 #[rustfmt::skip]
 pub(crate) fn make_minute_keyboard() -> InlineKeyboardMarkup {
-    let mut keyboard: Vec<Vec<InlineKeyboardButton>> = vec![];
-
-    keyboard.push(vec![
+    let keyboard: Vec<Vec<InlineKeyboardButton>> = vec![vec![
         InlineKeyboardButton::builder().text("00").callback_data("time_minute:00").build(),
         InlineKeyboardButton::builder().text("15").callback_data("time_minute:15").build(),
         InlineKeyboardButton::builder().text("30").callback_data("time_minute:30").build(),
         InlineKeyboardButton::builder().text("45").callback_data("time_minute:45").build(),
-    ]);
+    ]];
 
     InlineKeyboardMarkup {
         inline_keyboard: keyboard,

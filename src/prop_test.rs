@@ -33,7 +33,7 @@ mod tests {
         ) -> Result<()> {
             self.chat.push(Message {
                 msg: msg.to_owned(),
-                keyboard: keyboard,
+                keyboard,
                 deleted: false,
             });
             Ok(())
@@ -119,15 +119,15 @@ mod tests {
                             let expected_next = front
                                 .chat
                                 .last()
-                                .and_then(|last| {
+                                .map(|last| {
                                     src.log_value("last_msg", &last.msg);
-                                    Some(if last.msg.starts_with(EXPECT_BUTTON_PUSH) {
+                                    if last.msg.starts_with(EXPECT_BUTTON_PUSH) {
                                         ExpectedNextAction::PushButton
                                     } else if last.msg == EXPECT_DURATION_MSG {
                                         ExpectedNextAction::WriteDurationSpec
                                     } else {
                                         ExpectedNextAction::None
-                                    })
+                                    }
                                 })
                                 .unwrap_or(ExpectedNextAction::None);
 

@@ -75,7 +75,7 @@ fn main() -> Result<()> {
                                     }
                                 }
                                 Err(e) => {
-                                    front.send_message(
+                                    let _ = front.send_message(
                                         user.id as i64,
                                         &format!("Error while state machine processing:\n\n{e:#}"),
                                         None,
@@ -110,7 +110,7 @@ fn main() -> Result<()> {
                                     }
                                 }
                                 Err(e) => {
-                                    front.send_message(
+                                    let _ = front.send_message(
                                         user.id as i64,
                                         &format!("Error while state machine processing:\n\n{e:#}"),
                                         None,
