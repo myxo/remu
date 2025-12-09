@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use chrono::Utc;
 use frankenstein::{
     TelegramApi,
     client_ureq::Bot,
@@ -35,11 +34,7 @@ fn main() -> Result<()> {
         .init();
     info!("start");
 
-    let clock: Box<dyn crate::time::Clock + Send> = if cfg!(feature = "mock-time") {
-        Box::new(crate::time::MockClock::new(Utc::now()))
-    } else {
-        Box::new(crate::time::OsClock {})
-    };
+    let clock = Box::new(crate::time::OsClock {});
     let mut engine = engine::Engine::new(database::DbMode::Filesystem, clock);
     let api_key = std::fs::read_to_string("token.id")?;
     let bot = Bot::new(&api_key);

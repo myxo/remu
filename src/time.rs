@@ -28,6 +28,7 @@ pub struct MockClock {
 
 #[cfg(any(test, feature = "mock-time"))]
 impl MockClock {
+    #[allow(dead_code)]
     pub fn new(start: DateTime<Utc>) -> MockClock {
         MockClock {
             currect_time: start,
