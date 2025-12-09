@@ -1,5 +1,6 @@
 use crate::command::{Command, OneTimeEventImpl, RepetitiveEventImpl};
 use crate::sql_query as sql_q;
+use anyhow::Result;
 use chrono::Utc;
 use chrono::prelude::*;
 use log::error;
@@ -49,22 +50,21 @@ impl DataBase {
         DataBase { conn }
     }
 
-    pub fn add_user(&mut self, info: UserInfo) -> Result<(), String> {
-        let res = self.conn.execute(
-            sql_q::INSERT_USER,
-            params![
-                &info.uid,
-                &info.name,
-                &info.first_name,
-                &info.last_name,
-                &info.chat_id,
-                &info.tz
-            ],
-        );
-        match res {
-            Ok(_) => Ok(()),
-            Err(e) => Err(e.to_string()),
-        }
+    pub fn add_user(&mut self, info: UserInfo) -> Result<()> {
+        self.conn
+            .execute(
+                sql_q::INSERT_USER,
+                params![
+                    &info.uid,
+                    &info.name,
+                    &info.first_name,
+                    &info.last_name,
+                    &info.chat_id,
+                    &info.tz
+                ],
+            )
+            .map(|_| ())
+            .map_err(Into::into)
     }
 
     pub fn put(&mut self, uid: i64, value: Command, now: DateTime<Utc>) -> bool {

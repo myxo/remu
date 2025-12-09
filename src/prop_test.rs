@@ -108,7 +108,9 @@ mod tests {
 
             let mut front = MockFront::new();
             let mut engine = engine::Engine::new(database::DbMode::InMemory, clock);
-            engine.add_user(uid, "name", uid, "", "", -3); // TODO: chaos tz
+            engine
+                .add_user(uid, "name", uid, "", "", -3)
+                .expect("cannot add user"); // TODO: chaos tz
 
             let labels = &["user_write_msg", "user_push_button", "tick"];
 

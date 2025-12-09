@@ -9,7 +9,7 @@ use frankenstein::{
     types::{InlineKeyboardMarkup, ReplyMarkup},
     updates::UpdateContent,
 };
-use log::{debug, info, warn};
+use log::{debug, error, info, warn};
 
 use crate::{
     keyboards::{
@@ -50,38 +50,54 @@ fn main() -> Result<()> {
                     // dbg!(&update);
                     match update.content {
                         UpdateContent::Message(message) => {
-                            /*
-                            // TODO: /start
-                            let user = msg.from.expect("TODO");
-                            engine.add_user(
-                                user.id.0 as i64,
-                                user.username.as_ref().unwrap(),
-                                msg.chat.id.0,
-                                &user.first_name,
-                                &user.last_name.as_ref().unwrap(),
-                                -3,
-                            );
-                            */
-
                             let user = message.from.as_ref().expect("message has user");
-                            let cmds =
-                                engine.handle_text_message(user.id as i64, &message.text.unwrap());
-                            match cmds {
-                                Ok(cmds) => {
-                                    if let Err(e) =
-                                        handle_command_to_frontend(&mut front, user.id as i64, cmds)
-                                    {
-                                        warn!("cannot handle frontend command: {e}");
+                            let msg_text = message.text.as_ref().unwrap();
+                            match msg_text.as_str() {
+                                // very special case
+                                "/start" => {
+                                    let res = engine.add_user(
+                                        user.id as i64,
+                                        user.username.as_ref().unwrap(),
+                                        message.chat.id,
+                                        &user.first_name,
+                                        user.last_name.as_ref().unwrap(),
+                                        -3,
+                                    );
+                                    if let Err(e) = res {
+                                        error!(
+                                            "cannot add user, UID - <{}>, username - <{:?}>, chat_id - <{}>. Reason: {e:#}",
+                                            user.id, user.username, message.chat.id
+                                        );
+                                        let _ = front.send_message(
+                                            user.id as i64,
+                                            &format!("cannot process message: {e}"),
+                                            None,
+                                        );
                                     }
                                 }
-                                Err(e) => {
-                                    let _ = front.send_message(
-                                        user.id as i64,
-                                        &format!("Error while state machine processing:\n\n{e:#}"),
-                                        None,
-                                    );
+                                _ => {
+                                    match engine.handle_text_message(user.id as i64, msg_text) {
+                                        Ok(cmds) => {
+                                            if let Err(e) = handle_command_to_frontend(
+                                                &mut front,
+                                                user.id as i64,
+                                                cmds,
+                                            ) {
+                                                warn!("cannot handle frontend command: {e}");
+                                            }
+                                        }
+                                        Err(e) => {
+                                            let _ = front.send_message(
+                                                user.id as i64,
+                                                &format!(
+                                                    "Error while state machine processing:\n\n{e:#}"
+                                                ),
+                                                None,
+                                            );
+                                        }
+                                    };
                                 }
-                            };
+                            }
                         }
                         UpdateContent::CallbackQuery(callback_query) => {
                             let user = &callback_query.from;
