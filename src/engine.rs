@@ -2,7 +2,6 @@ use anyhow::{Context, Result};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::time;
 
 use crate::command::*;
 use crate::database::{DataBase, DbMode, UserInfo};
@@ -211,16 +210,11 @@ impl Engine {
         result
     }
 
-    #[expect(dead_code, reason = "Used for future wake scheduling loop")]
-    fn get_time_until_next_wakeup(&self) -> std::time::Duration {
-        if let Some(ts) = self.data_base.get_nearest_wakeup() {
+    pub fn get_time_until_next_wakeup(&self) -> Option<std::time::Duration> {
+        self.data_base.get_nearest_wakeup().map(|ts| {
             ts.signed_duration_since(self.clock.now())
                 .to_std()
-                .unwrap_or(time::Duration::from_secs(0))
-        } else {
-            // If no current event, give some number. Big enough to not waste much cpu cycles,
-            // but small enough for not to miss event if there is some bug here...
-            time::Duration::from_secs(60)
-        }
+                .unwrap_or(std::time::Duration::ZERO) // we got negative, so we should wake up immediately
+        })
     }
 }
