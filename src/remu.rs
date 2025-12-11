@@ -12,6 +12,7 @@ use frankenstein::{
 use log::{debug, error, info, warn};
 
 use crate::{
+    engine::Engine,
     keyboards::{
         make_calendar_keyboard, make_hour_keyboard, make_main_action_keyboard, make_minute_keyboard,
     },
@@ -42,103 +43,17 @@ fn main() -> Result<()> {
 
     let mut update_params = GetUpdatesParams::builder().build();
     loop {
+        update_params.timeout = engine
+            .get_time_until_next_wakeup()
+            .map(|dur| dur.as_secs() as u32);
         let result = bot.get_updates(&update_params);
 
         match result {
             Ok(response) => {
                 for update in response.result {
-                    // dbg!(&update);
-                    match update.content {
-                        UpdateContent::Message(message) => {
-                            let user = message.from.as_ref().expect("message has user");
-                            let msg_text = message.text.as_ref().unwrap();
-                            match msg_text.as_str() {
-                                // very special case
-                                "/start" => {
-                                    let res = engine.add_user(
-                                        user.id as i64,
-                                        user.username.as_ref().unwrap(),
-                                        message.chat.id,
-                                        &user.first_name,
-                                        user.last_name.as_ref().unwrap(),
-                                        -3,
-                                    );
-                                    if let Err(e) = res {
-                                        error!(
-                                            "cannot add user, UID - <{}>, username - <{:?}>, chat_id - <{}>. Reason: {e:#}",
-                                            user.id, user.username, message.chat.id
-                                        );
-                                        let _ = front.send_message(
-                                            user.id as i64,
-                                            &format!("cannot process message: {e}"),
-                                            None,
-                                        );
-                                    }
-                                }
-                                _ => {
-                                    match engine.handle_text_message(user.id as i64, msg_text) {
-                                        Ok(cmds) => {
-                                            if let Err(e) = handle_command_to_frontend(
-                                                &mut front,
-                                                user.id as i64,
-                                                cmds,
-                                            ) {
-                                                warn!("cannot handle frontend command: {e}");
-                                            }
-                                        }
-                                        Err(e) => {
-                                            let _ = front.send_message(
-                                                user.id as i64,
-                                                &format!(
-                                                    "Error while state machine processing:\n\n{e:#}"
-                                                ),
-                                                None,
-                                            );
-                                        }
-                                    };
-                                }
-                            }
-                        }
-                        UpdateContent::CallbackQuery(callback_query) => {
-                            let user = &callback_query.from;
-                            let msg = callback_query.message.as_ref().unwrap();
-                            let msg = match msg {
-                                frankenstein::types::MaybeInaccessibleMessage::Message(message) => message,
-                                frankenstein::types::MaybeInaccessibleMessage::InaccessibleMessage(_) => {
-                                    warn!("getting InaccessibleMessage in callback query: {:?}", callback_query);
-                                    continue;
-                                }
-                            };
-
-                            debug!("In a keyboard handler, user: {}", user.first_name);
-                            let cmds = engine.handle_keyboard_responce(
-                                user.id as i64,
-                                msg.message_id,
-                                &callback_query.data.unwrap(),
-                                msg.text.as_ref().unwrap(),
-                            );
-                            match cmds {
-                                Ok(cmds) => {
-                                    if let Err(e) =
-                                        handle_command_to_frontend(&mut front, user.id as i64, cmds)
-                                    {
-                                        warn!("cannot handle frontend command: {e}");
-                                    }
-                                }
-                                Err(e) => {
-                                    let _ = front.send_message(
-                                        user.id as i64,
-                                        &format!("Error while state machine processing:\n\n{e:#}"),
-                                        None,
-                                    );
-                                }
-                            };
-                        }
-                        _ => {
-                            warn!("Unknown update type: {:?}", update)
-                        }
-                    }
-                    update_params.offset = Some(i64::from(update.update_id) + 1);
+                    let update_id = update.update_id;
+                    process_event(update, &mut engine, &mut front);
+                    update_params.offset = Some(i64::from(update_id) + 1);
                 }
             }
             Err(error) => {
@@ -150,6 +65,99 @@ fn main() -> Result<()> {
             if let Err(e) = handle_command_to_frontend(&mut front, ev.uid, ev.cmd_vec) {
                 warn!("cannot handle frontend command: {e}");
             }
+        }
+    }
+}
+
+fn process_event(
+    update: frankenstein::updates::Update,
+    engine: &mut Engine,
+    front: &mut impl FrontendHandler,
+) {
+    match update.content {
+        UpdateContent::Message(message) => {
+            let user = message.from.as_ref().expect("message has user");
+            let msg_text = message.text.as_ref().unwrap();
+            match msg_text.as_str() {
+                "/start" => {
+                    // very special case
+                    let res = engine.add_user(
+                        user.id as i64,
+                        user.username.as_ref().unwrap(),
+                        message.chat.id,
+                        &user.first_name,
+                        user.last_name.as_ref().unwrap(),
+                        -3,
+                    );
+                    if let Err(e) = res {
+                        error!(
+                            "cannot add user, UID - <{}>, username - <{:?}>, chat_id - <{}>. Reason: {e:#}",
+                            user.id, user.username, message.chat.id
+                        );
+                        let _ = front.send_message(
+                            user.id as i64,
+                            &format!("cannot process message: {e}"),
+                            None,
+                        );
+                    }
+                }
+                _ => {
+                    match engine.handle_text_message(user.id as i64, msg_text) {
+                        Ok(cmds) => {
+                            if let Err(e) = handle_command_to_frontend(front, user.id as i64, cmds)
+                            {
+                                warn!("cannot handle frontend command: {e}");
+                            }
+                        }
+                        Err(e) => {
+                            let _ = front.send_message(
+                                user.id as i64,
+                                &format!("Error while state machine processing:\n\n{e:#}"),
+                                None,
+                            );
+                        }
+                    };
+                }
+            }
+        }
+        UpdateContent::CallbackQuery(callback_query) => {
+            let user = &callback_query.from;
+            let msg = callback_query.message.as_ref().unwrap();
+            let msg = match msg {
+                frankenstein::types::MaybeInaccessibleMessage::Message(message) => message,
+                frankenstein::types::MaybeInaccessibleMessage::InaccessibleMessage(_) => {
+                    warn!(
+                        "getting InaccessibleMessage in callback query: {:?}",
+                        callback_query
+                    );
+                    return;
+                }
+            };
+
+            debug!("In a keyboard handler, user: {}", user.first_name);
+            let cmds = engine.handle_keyboard_responce(
+                user.id as i64,
+                msg.message_id,
+                &callback_query.data.unwrap(),
+                msg.text.as_ref().unwrap(),
+            );
+            match cmds {
+                Ok(cmds) => {
+                    if let Err(e) = handle_command_to_frontend(front, user.id as i64, cmds) {
+                        warn!("cannot handle frontend command: {e}");
+                    }
+                }
+                Err(e) => {
+                    let _ = front.send_message(
+                        user.id as i64,
+                        &format!("Error while state machine processing:\n\n{e:#}"),
+                        None,
+                    );
+                }
+            };
+        }
+        _ => {
+            warn!("Unknown update type: {:?}", update)
         }
     }
 }
