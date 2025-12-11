@@ -1,6 +1,5 @@
 use anyhow::{Context, Result};
 use log::{debug, info};
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 use crate::command::*;
@@ -8,33 +7,7 @@ use crate::database::{DataBase, DbMode, UserInfo};
 use crate::state::*;
 use crate::time::Clock;
 
-#[expect(dead_code)]
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub enum CmdToEngine {
-    AddUser {
-        uid: i64,
-        username: String,
-        chat_id: i64,
-        first_name: String,
-        last_name: String,
-        tz: i32,
-    },
-    TextMessage {
-        uid: i64,
-        msg_id: i64,
-        message: String,
-    },
-    KeyboardMessage {
-        uid: i64,
-        msg_id: i64,
-        call_data: String,
-        msg_text: String,
-    },
-    AdvanceTime(i64), // used in test enviroment so engine known that time has been advanced
-    Terminate,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct CmdFromEngine {
     pub uid: i64,
     pub to_msg: Option<i64>,

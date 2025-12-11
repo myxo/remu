@@ -3,7 +3,6 @@ use chrono::prelude::*;
 use log::debug;
 use log::error;
 use log::warn;
-use serde::{Deserialize, Serialize};
 
 use crate::database::DataBase;
 use crate::engine::ProcessResult;
@@ -15,13 +14,13 @@ pub const EXPECT_TIME_MSG: &str = "Ok, now write the time of event";
 pub const EXPECT_BUTTON_PUSH: &str = "Ok, now choose";
 
 // FIXME: make struct derive from String
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct SendMessageCommand {
     pub text: String,
 }
 
 // FIXME: remove clone trait
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct AtCalendarCommand {
     pub action_type: String,
     pub year: i32,
@@ -31,12 +30,12 @@ pub struct AtCalendarCommand {
     pub msg_id: Option<i32>,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct KeyboardCommand {
     pub action_type: KeyboardCommandType,
     pub text: String,
 }
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum KeyboardCommandType {
     Main,
     Hour,
@@ -44,7 +43,7 @@ pub enum KeyboardCommandType {
 }
 
 #[allow(non_camel_case_types)]
-#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum FrontendCommand {
     send(SendMessageCommand),
     calendar(AtCalendarCommand),
