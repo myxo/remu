@@ -36,7 +36,7 @@ fn main() -> Result<()> {
 
     let mut engine = engine::Engine::new(database::DbMode::Filesystem);
     let api_key = std::fs::read_to_string("token.id")?;
-    let bot = Bot::new(&api_key);
+    let bot = Bot::new(api_key.trim());
     let mut front = TelegramFrontend { bot: bot.clone() };
 
     let mut update_params = GetUpdatesParams::builder().build();
