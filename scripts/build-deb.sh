@@ -53,7 +53,7 @@ Architecture: $ARCH
 Section: utils
 Priority: optional
 Maintainer: Klimov Nikolay <klimov.ns@mail.ru>
-Depends: adduser, libc6 (>= 2.31), libsqlite3-0, systemd
+Depends: adduser, libc6 (>= 2.31), systemd
 Description: Remu Telegram reminder bot
  The Remu bot processes Telegram updates and schedules reminders.
 CONTROL

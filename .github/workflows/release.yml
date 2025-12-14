@@ -36,7 +36,7 @@ jobs:
           - arch: amd64
             runner: ubuntu-latest
           - arch: arm64
-            runner: ubuntu-22.04-arm64
+            runner: ubuntu-24.04-arm64
     runs-on: ${{ matrix.runner }}
     permissions:
       contents: write
