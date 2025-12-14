@@ -157,7 +157,6 @@ fn get_datetime_from_capture(cap: &Captures, now: DateTime<Utc>, tz: i32) -> Opt
 mod tests {
     use super::*;
     use crate::command::Command::*;
-    use crate::time::{Clock, MockClock};
 
     #[test]
     fn parse_for_general() {
@@ -220,15 +219,15 @@ mod tests {
 
     #[test]
     fn parse_at_tests() {
-        let mut clock = Box::new(MockClock::new(Utc::now())) as Box<dyn Clock>;
+        let now = Utc.with_ymd_and_hms(2024, 10, 24, 12, 0, 0).unwrap();
         {
             let command = String::from("24-10 at 18.30");
             let text = "some text";
             let command_text = command + " " + text;
             let t = Utc
-                .with_ymd_and_hms(clock.now().year(), 10, 24, 18 - 3, 30, 0)
+                .with_ymd_and_hms(now.year(), 10, 24, 18 - 3, 30, 0)
                 .unwrap();
-            let result = try_parse_at(&command_text, clock.now(), -3);
+            let result = try_parse_at(&command_text, now, -3);
             assert!(result.is_some());
             match result.unwrap() {
                 OneTimeEvent(res) => {
@@ -240,11 +239,10 @@ mod tests {
         }
 
         {
-            clock.set_time(Utc.timestamp_opt(61, 0).unwrap());
+            let now = Utc.timestamp_opt(61, 0).unwrap();
             let command = String::from("24 at 18.30");
             let text = "some text";
             let command_text = command + " " + text;
-            let now = clock.now();
             let t = Utc
                 .with_ymd_and_hms(now.year(), now.month(), 24, 18 - 3, 30, 0)
                 .unwrap();
@@ -258,13 +256,11 @@ mod tests {
                 }
                 _ => panic!("Wrong command type"),
             };
-            //clock.set_time(Utc.timestamp(0, 0)); TODO: ?
         }
         {
             let command = String::from("at 18.30");
             let text = "some text";
             let command_text = command + " " + text;
-            let now = clock.now();
             let t = Utc
                 .with_ymd_and_hms(now.year(), now.month(), now.day(), 18, 30, 0)
                 .unwrap();
@@ -283,12 +279,11 @@ mod tests {
             let command = String::from("at 18");
             let text = "some text";
             let command_text = command + " " + text;
-            let now = clock.now();
             let t = Utc
                 .with_ymd_and_hms(now.year(), now.month(), now.day(), 18, 0, 0)
                 .unwrap();
 
-            let result = try_parse_at(&command_text, clock.now(), 0);
+            let result = try_parse_at(&command_text, now, 0);
             assert!(result.is_some());
             match result.unwrap() {
                 OneTimeEvent(res) => {

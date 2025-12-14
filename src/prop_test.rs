@@ -98,16 +98,17 @@ mod tests {
                 )
                 .init();
             }
-            let clock = Box::new(crate::time::MockClock::new(chrono::Utc::now()));
             let uid = 69;
             let mut count = 0;
             let mut new_msg = || {
                 count += 1;
                 format!("msg# {count}")
             };
+            let mut now =
+                chrono::DateTime::from_timestamp(1_600_000_000, 0).expect("valid timestamp");
 
             let mut front = MockFront::new();
-            let mut engine = engine::Engine::new(database::DbMode::InMemory, clock);
+            let mut engine = engine::Engine::new(database::DbMode::InMemory);
             engine
                 .add_user(uid, "name", uid, "", "", -3)
                 .expect("cannot add user"); // TODO: chaos tz
@@ -152,7 +153,7 @@ mod tests {
                             };
 
                             src.log_value("msg", &msg);
-                            let cmds = engine.handle_text_message(uid, &msg);
+                            let cmds = engine.handle_text_message(uid, &msg, now);
 
                             let cmds = match cmds {
                                 Ok(cmds) => {
@@ -190,7 +191,7 @@ mod tests {
                             if let Some((b, _)) = src.choose("button", &buttons) {
                                 if let Some(callback) = &b.0.callback_data {
                                     let cmds = engine
-                                        .handle_keyboard_responce(uid, b.1, callback, b.2)
+                                        .handle_keyboard_responce(uid, b.1, callback, b.2, now)
                                         .expect("no error in test");
                                     log_frontend_command(src, &cmds);
                                     handle_command_to_frontend(&mut front, uid, cmds)
@@ -201,6 +202,7 @@ mod tests {
                             }
                         }
                         "tick" => {}
+                        "advance_time" => now += std::time::Duration::from_secs(1),
                         _ => panic!("meh"),
                     };
                 });

@@ -28,15 +28,13 @@ mod prop_test;
 mod sql_query;
 mod state;
 mod text_data;
-mod time;
 
 fn main() -> Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("remu=debug"))
         .init();
     info!("start");
 
-    let clock = Box::new(crate::time::OsClock {});
-    let mut engine = engine::Engine::new(database::DbMode::Filesystem, clock);
+    let mut engine = engine::Engine::new(database::DbMode::Filesystem);
     let api_key = std::fs::read_to_string("token.id")?;
     let bot = Bot::new(&api_key);
     let mut front = TelegramFrontend { bot: bot.clone() };
@@ -44,7 +42,7 @@ fn main() -> Result<()> {
     let mut update_params = GetUpdatesParams::builder().build();
     loop {
         update_params.timeout = engine
-            .get_time_until_next_wakeup()
+            .get_time_until_next_wakeup(chrono::Utc::now())
             .map(|dur| dur.as_secs() as u32);
         let result = bot.get_updates(&update_params);
 
@@ -52,7 +50,7 @@ fn main() -> Result<()> {
             Ok(response) => {
                 for update in response.result {
                     let update_id = update.update_id;
-                    process_event(update, &mut engine, &mut front);
+                    process_event(update, &mut engine, &mut front, chrono::Utc::now());
                     update_params.offset = Some(i64::from(update_id) + 1);
                 }
             }
@@ -60,7 +58,7 @@ fn main() -> Result<()> {
                 println!("Failed to get updates: {error:?}");
             }
         }
-        let events = engine.tick();
+        let events = engine.tick(chrono::Utc::now());
         for ev in events {
             if let Err(e) = handle_command_to_frontend(&mut front, ev.uid, ev.cmd_vec) {
                 warn!("cannot handle frontend command: {e}");
@@ -73,6 +71,7 @@ fn process_event(
     update: frankenstein::updates::Update,
     engine: &mut Engine,
     front: &mut impl FrontendHandler,
+    now: chrono::DateTime<chrono::Utc>,
 ) {
     match update.content {
         UpdateContent::Message(message) => {
@@ -102,7 +101,7 @@ fn process_event(
                     }
                 }
                 _ => {
-                    match engine.handle_text_message(user.id as i64, msg_text) {
+                    match engine.handle_text_message(user.id as i64, msg_text, now) {
                         Ok(cmds) => {
                             if let Err(e) = handle_command_to_frontend(front, user.id as i64, cmds)
                             {
@@ -140,6 +139,7 @@ fn process_event(
                 msg.message_id,
                 &callback_query.data.unwrap(),
                 msg.text.as_ref().unwrap(),
+                now,
             );
             match cmds {
                 Ok(cmds) => {

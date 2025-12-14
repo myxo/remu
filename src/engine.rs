@@ -1,11 +1,11 @@
 use anyhow::{Context, Result};
+use chrono::{DateTime, Utc};
 use log::{debug, info};
 use std::collections::HashMap;
 
 use crate::command::*;
 use crate::database::{DataBase, DbMode, UserInfo};
 use crate::state::*;
-use crate::time::Clock;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CmdFromEngine {
@@ -17,7 +17,6 @@ pub struct CmdFromEngine {
 pub struct Engine {
     data_base: DataBase,
     user_states: HashMap<i32, UserState>,
-    clock: Box<dyn Clock + Send>,
 }
 
 pub struct ProcessResult {
@@ -42,12 +41,11 @@ impl ProcessResult {
 }
 
 impl Engine {
-    pub fn new(mode: DbMode, clock: Box<dyn Clock + Send>) -> Engine {
+    pub fn new(mode: DbMode) -> Engine {
         info!("Initialize engine");
         let mut engine = Engine {
             data_base: DataBase::new(mode),
             user_states: HashMap::new(),
-            clock,
         };
 
         for id in engine.get_user_chat_id_all() {
@@ -60,6 +58,7 @@ impl Engine {
         &mut self,
         uid: i64,
         text_message: &str,
+        now: DateTime<Utc>,
     ) -> Result<Vec<FrontendCommand>> {
         info!("handle text message for {uid}");
         let state = self
@@ -72,7 +71,7 @@ impl Engine {
             input: text_message.to_owned(),
         };
         debug!("current state: {}", state.str());
-        let result = state.process(data, self.clock.now(), &mut self.data_base)?;
+        let result = state.process(data, now, &mut self.data_base)?;
         let ProcessResult {
             frontend_command,
             next_state,
@@ -91,6 +90,7 @@ impl Engine {
         msg_id: i32,
         call_data: &str,
         msg_text: &str,
+        now: DateTime<Utc>,
     ) -> Result<Vec<FrontendCommand>> {
         info!("handle button push for {uid}");
         debug!("Handle Keyboard data : {}, text: {}", call_data, msg_text);
@@ -111,7 +111,7 @@ impl Engine {
                 frontend_command: vec![FrontendCommand::delete_keyboard(msg_id)],
                 next_state: None,
             }),
-            _ => state.process_keyboard(data, self.clock.now(), &mut self.data_base),
+            _ => state.process_keyboard(data, now, &mut self.data_base),
         };
         let (front_cmd, next) = match result {
             Ok(ProcessResult {
@@ -160,12 +160,9 @@ impl Engine {
         self.data_base.get_user_chat_id_all()
     }
 
-    pub fn tick(&mut self) -> Vec<CmdFromEngine> {
+    pub fn tick(&mut self, now: DateTime<Utc>) -> Vec<CmdFromEngine> {
         let mut result: Vec<CmdFromEngine> = Vec::new();
-        for ev in self
-            .data_base
-            .extract_events_happens_already(self.clock.now())
-        {
+        for ev in self.data_base.extract_events_happens_already(now) {
             let event_text = match &ev.command {
                 Command::OneTimeEvent(ev) => ev.event_text.clone(),
                 Command::RepetitiveEvent(ev) => ev.event_text.clone(),
@@ -183,9 +180,12 @@ impl Engine {
         result
     }
 
-    pub fn get_time_until_next_wakeup(&self) -> Option<std::time::Duration> {
+    pub fn get_time_until_next_wakeup(
+        &self,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Option<std::time::Duration> {
         self.data_base.get_nearest_wakeup().map(|ts| {
-            ts.signed_duration_since(self.clock.now())
+            ts.signed_duration_since(now)
                 .to_std()
                 .unwrap_or(std::time::Duration::ZERO) // we got negative, so we should wake up immediately
         })

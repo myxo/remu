@@ -4,9 +4,6 @@ version = "0.2.0"
 authors = ["Klimov Nikolay <klimov.ns@mail.ru>"]
 edition = "2024"
 
-[features]
-mock-time = []
-
 [[bin]]
 name = "remu"
 path = "src/remu.rs"
