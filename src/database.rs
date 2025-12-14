@@ -241,11 +241,8 @@ impl DataBase {
             sql_q::INSERT_ACTIVE_EVENT,
             params![&command.event_text, &event_time, &uid, &parent_id],
         );
-        if res.is_err() {
-            error!(
-                "Can't insert one time event in db. Reasone: {}",
-                res.unwrap_err()
-            );
+        if let Err(e) = res {
+            error!("Can't insert one time event in db. Reason: {e}");
             return false;
         }
         true
@@ -263,11 +260,8 @@ impl DataBase {
             sql_q::INSERT_REP_EVENT,
             params![&command.event_text, &event_time, &event_wait, &uid],
         );
-        if res.is_err() {
-            error!(
-                "Can't insert repetitive event in db. Reasone: {}",
-                res.unwrap_err()
-            );
+        if let Err(e) = res {
+            error!("Can't insert repetitive event in db. Reasone: {e}");
             return false;
         }
 
