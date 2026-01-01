@@ -48,7 +48,8 @@ pub(crate) const DELETE_FROM_ACTIVE_EVENT_BY_ID: &str = "DELETE FROM active_even
 pub(crate) const DELETE_FROM_ACTIVE_EVENT_BY_PARENT_ID: &str =
     "DELETE FROM active_event WHERE parent_id = ?1;";
 
-pub(crate) const MIN_TIMESTAMP_FROM_ACTIVE_EVENT: &str = "SELECT min(event_time) FROM active_event;";
+pub(crate) const MIN_TIMESTAMP_FROM_ACTIVE_EVENT: &str =
+    "SELECT min(event_time) FROM active_event;";
 
 pub(crate) const SELECT_ALL_ACTIVE_EVENT_BY_UID_LIMIT: &str = "SELECT id, event_text, event_time FROM active_event WHERE uid = ?1 ORDER BY event_time LIMIT 20;";
 

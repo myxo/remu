@@ -1,4 +1,4 @@
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Result, anyhow};
 use chrono::{DateTime, Utc};
 use log::{debug, info};
 use std::collections::HashMap;
@@ -15,6 +15,7 @@ pub(crate) struct CmdFromEngine {
     pub(crate) cmd_vec: Vec<FrontendCommand>,
 }
 
+#[derive(Clone, Debug)]
 struct UserState {
     last_msg_id: i32,
     state: StateMachine,
@@ -72,11 +73,18 @@ impl Engine {
         msg_id: i32,
         text_message: &str,
         now: DateTime<Utc>,
-    ) -> Result<Vec<FrontendCommand>> {
-        let state = self
-            .user_states
-            .get(&uid)
-            .context("no /start command was processed")?;
+    ) -> (Result<()>, Vec<FrontendCommand>) {
+        let state = self.user_states.get(&uid);
+        if state.is_none() {
+            let err_msg = "no /start command was processed";
+            return (
+                Err(anyhow!(err_msg)),
+                vec![FrontendCommand::send {
+                    text: err_msg.to_owned(),
+                }],
+            );
+        };
+        let state = state.unwrap();
         let data = TextEventData {
             uid,
             msg_id: 0,
@@ -102,7 +110,7 @@ impl Engine {
                         state: next_state.unwrap_or(state.state.clone()),
                     },
                 );
-                Ok(frontend_command)
+                (Ok(()), frontend_command)
             }
             Err(e) => {
                 debug!("Finish processing with error (return to default state): {e}");
@@ -113,7 +121,11 @@ impl Engine {
                         state: StateMachine::ReadyToProcess,
                     },
                 );
-                Err(anyhow!("cannot handle text, return to default state: {e}"))
+                let err_msg = format!("cannot handle text, return to default state: {e}");
+                (
+                    Err(anyhow!(err_msg.clone())),
+                    vec![FrontendCommand::send { text: err_msg }],
+                )
             }
         }
     }
@@ -125,10 +137,10 @@ impl Engine {
         call_data: &str,
         msg_text: &str,
         now: DateTime<Utc>,
-    ) -> Result<Vec<FrontendCommand>> {
+    ) -> (Result<()>, Vec<FrontendCommand>) {
         info!("handle button push for {uid}, msg_id: {msg_id}");
         debug!("Handle Keyboard data : {}, text: {}", call_data, msg_text);
-        let state = self.user_states.get(&uid).unwrap();
+        let state = self.user_states.get(&uid).unwrap().clone();
         let data = KeyboardEventData {
             uid,
             msg_id,
@@ -140,11 +152,11 @@ impl Engine {
         let result = match data.callback_data.as_ref() {
             "ignore" => Ok(ProcessResult {
                 frontend_command: vec![FrontendCommand::delete_keyboard(msg_id)],
-                next_state: None,
+                next_state: Some(StateMachine::ReadyToProcess),
             }),
             OK_BUTTON_TEXT => Ok(ProcessResult {
                 frontend_command: vec![FrontendCommand::delete_keyboard(msg_id)],
-                next_state: None,
+                next_state: Some(StateMachine::ReadyToProcess),
             }),
             _ => state.state.process_keyboard(data, now, &mut self.db),
         };
@@ -161,10 +173,10 @@ impl Engine {
                     uid,
                     UserState {
                         last_msg_id: msg_id,
-                        state: next_state.unwrap_or(state.state.clone()),
+                        state: next_state.unwrap_or(state.state),
                     },
                 );
-                Ok(frontend_command)
+                (Ok(()), frontend_command)
             }
             Err(e) => {
                 debug!("Finish processing with error (return to default state): {e}");
@@ -175,9 +187,14 @@ impl Engine {
                         state: StateMachine::ReadyToProcess,
                     },
                 );
-                Err(anyhow!(
-                    "cannot handle button press, return to default state: {e}"
-                ))
+                let err_msg = format!("cannot handle button press, return to default state: {e}");
+                (
+                    Err(anyhow!(err_msg.clone())),
+                    vec![
+                        FrontendCommand::send { text: err_msg },
+                        FrontendCommand::delete_keyboard(state.last_msg_id),
+                    ],
+                )
             }
         }
     }

@@ -105,20 +105,11 @@ fn process_event(
                 return;
             }
 
-            match engine.handle_text_message(user.id as i64, message.message_id, msg_text, now) {
-                Ok(cmds) => {
-                    if let Err(e) = handle_command_to_frontend(front, user.id as i64, cmds) {
-                        warn!("cannot handle frontend command: {e}");
-                    }
-                }
-                Err(e) => {
-                    let _ = front.send_message(
-                        user.id as i64,
-                        &format!("Error while state machine processing:\n\n{e:#}"),
-                        None,
-                    );
-                }
-            };
+            let (_, cmds) =
+                engine.handle_text_message(user.id as i64, message.message_id, msg_text, now);
+            if let Err(e) = handle_command_to_frontend(front, user.id as i64, cmds) {
+                warn!("cannot handle frontend command: {e}");
+            }
         }
         UpdateContent::CallbackQuery(callback_query) => {
             let user = &callback_query.from;
@@ -134,27 +125,16 @@ fn process_event(
                 }
             };
 
-            let cmds = engine.handle_keyboard_responce(
+            let (_, cmds) = engine.handle_keyboard_responce(
                 user.id as i64,
                 msg.message_id,
                 &callback_query.data.unwrap(),
                 msg.text.as_ref().unwrap(),
                 now,
             );
-            match cmds {
-                Ok(cmds) => {
-                    if let Err(e) = handle_command_to_frontend(front, user.id as i64, cmds) {
-                        warn!("cannot handle frontend command: {e}");
-                    }
-                }
-                Err(e) => {
-                    let _ = front.send_message(
-                        user.id as i64,
-                        &format!("Error while state machine processing:\n\n{e:#}"),
-                        None,
-                    );
-                }
-            };
+            if let Err(e) = handle_command_to_frontend(front, user.id as i64, cmds) {
+                warn!("cannot handle frontend command: {e}");
+            }
         }
         _ => {
             warn!("Unknown update type: {:?}", update)

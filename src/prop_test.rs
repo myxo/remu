@@ -7,10 +7,13 @@ mod tests {
         FrontendHandler,
         database::{self, UserInfo},
         engine, handle_command_to_frontend,
-        keyboards::OK_BUTTON_TEXT,
-        state::{EXPECT_BUTTON_PUSH, EXPECT_DURATION_MSG, FrontendCommand, is_state_message},
+        keyboards::{self, OK_BUTTON_TEXT},
+        state::{
+            EXPECT_BUTTON_PUSH, EXPECT_DURATION_MSG, EXPECT_HOURS, EXPECT_MINUTES, FrontendCommand,
+        },
     };
 
+    #[derive(Debug)]
     struct Message {
         msg: String,
         keyboard: Option<InlineKeyboardMarkup>,
@@ -49,7 +52,7 @@ mod tests {
         fn get_last_msg_buttons(&self) -> Vec<(InlineKeyboardButton, i32, &str)> {
             let mut buttons = Vec::<(InlineKeyboardButton, i32, &str)>::new();
 
-            for (i, msg) in self.chat.iter().rev().enumerate() {
+            for (i, msg) in self.chat.iter().enumerate().rev() {
                 if !msg.deleted {
                     if let Some(k) = &msg.keyboard {
                         for row in &k.inline_keyboard {
@@ -116,6 +119,69 @@ mod tests {
         }
     }
 
+    fn is_state_message(msg: &str) -> bool {
+        if msg.starts_with(EXPECT_DURATION_MSG) {
+            true
+        } else if msg.starts_with(EXPECT_HOURS) {
+            true
+        } else if msg.starts_with(EXPECT_MINUTES) {
+            true
+        } else if msg.starts_with(EXPECT_BUTTON_PUSH) {
+            true
+        } else {
+            false
+        }
+    }
+
+    fn is_state_machine_active(last_msg: &Message) -> bool {
+        if let Some(keyboard) = &last_msg.keyboard {
+            for line in &keyboard.inline_keyboard {
+                for b in line {
+                    if let Some(data) = &b.callback_data {
+                        if data == OK_BUTTON_TEXT {
+                            return false;
+                        }
+                    }
+                }
+            }
+            // only keyboard with "Ok" is finished state
+            true
+        } else {
+            is_state_message(&last_msg.msg)
+        }
+    }
+
+    #[test]
+    fn state_machine_active() {
+        let msg = Message {
+            msg: "".to_owned(),
+            keyboard: Some(keyboards::make_main_action_keyboard()),
+            deleted: false,
+        };
+        assert!(!is_state_machine_active(&msg));
+
+        let msg = Message {
+            msg: "".to_owned(),
+            keyboard: Some(keyboards::make_calendar_keyboard(2005, 5)),
+            deleted: false,
+        };
+        assert!(is_state_machine_active(&msg));
+
+        let msg = Message {
+            msg: "".to_owned(),
+            keyboard: Some(keyboards::make_hour_keyboard()),
+            deleted: false,
+        };
+        assert!(is_state_machine_active(&msg));
+
+        let msg = Message {
+            msg: "".to_owned(),
+            keyboard: Some(keyboards::make_minute_keyboard()),
+            deleted: false,
+        };
+        assert!(is_state_machine_active(&msg));
+    }
+
     #[test]
     #[ignore]
     fn property_test() {
@@ -126,10 +192,13 @@ mod tests {
             "5m".to_owned() // TODO: accept duration
         };
 
+        #[derive(Debug)]
         enum ExpectedNextAction {
             None,
             PushButton,
             WriteDurationSpec,
+            WriteTimeHour,
+            WriteTimeMinute,
         }
 
         chaos_theory::check(|src| {
@@ -175,11 +244,17 @@ mod tests {
                                         ExpectedNextAction::PushButton
                                     } else if last.msg.contains(EXPECT_DURATION_MSG) {
                                         ExpectedNextAction::WriteDurationSpec
+                                    } else if last.msg.contains(EXPECT_HOURS) {
+                                        ExpectedNextAction::WriteTimeHour
+                                    } else if last.msg.contains(EXPECT_MINUTES) {
+                                        ExpectedNextAction::WriteTimeMinute
                                     } else {
                                         ExpectedNextAction::None
                                     }
                                 })
                                 .unwrap_or(ExpectedNextAction::None);
+
+                            src.log_value("expected_next", &expected_next);
 
                             let (msg, expect_error) = match expected_next {
                                 ExpectedNextAction::None => (new_msg(), false),
@@ -197,25 +272,33 @@ mod tests {
                                         (make_duration_spec(), false)
                                     }
                                 }
+                                ExpectedNextAction::WriteTimeHour => {
+                                    if src.any("error_instead_of_hour") {
+                                        ("non spec string for test".to_owned(), true)
+                                    } else {
+                                        ("10".to_owned(), false)
+                                    }
+                                }
+                                ExpectedNextAction::WriteTimeMinute => {
+                                    if src.any("error_instead_of_minute") {
+                                        ("non spec string for test".to_owned(), true)
+                                    } else {
+                                        ("35".to_owned(), false)
+                                    }
+                                }
                             };
 
                             src.log_value("msg", &msg);
                             front.send_message(uid, &msg, None).expect("always");
-                            let cmds =
+                            let (res, cmds) =
                                 engine.handle_text_message(uid, front.last_msg_id(), &msg, now);
 
-                            let cmds = match cmds {
-                                Ok(cmds) => {
-                                    if expect_error {
-                                        panic!("expect error, but get commands {:?}", cmds);
-                                    }
-                                    cmds
+                            match res {
+                                Ok(_) => {
+                                    assert!(!expect_error, "expect error, but there is none")
                                 }
                                 Err(e) => {
-                                    if !expect_error {
-                                        panic!("unexpected error: {:#}", e);
-                                    }
-                                    return;
+                                    assert!(expect_error, "unexpected error: {:#}", e);
                                 }
                             };
 
@@ -227,24 +310,13 @@ mod tests {
                             let state_machine_middle_state = front
                                 .chat
                                 .last()
-                                .map(|last| {
-                                    if let Some(keyboard) = &last.keyboard {
-                                        keyboard
-                                            .inline_keyboard
-                                            .iter()
-                                            .flat_map(|k| k.iter())
-                                            .find_map(|k| {
-                                                k.callback_data
-                                                    .as_ref()
-                                                    .map(|f| f == OK_BUTTON_TEXT)
-                                            })
-                                            .is_none()
-                                    } else {
-                                        is_state_message(&last.msg)
-                                    }
-                                })
+                                .map(|last| is_state_machine_active(last))
                                 .unwrap_or(false);
 
+                            src.log_value(
+                                "state_machine_middle_state",
+                                &state_machine_middle_state,
+                            );
                             // if we in a middle of state machine processing, we use only last message keyboard
                             // just because it whould be harder to make prop test
                             // (mainly because it's hard to make a good property with current chat model and
@@ -262,9 +334,9 @@ mod tests {
                                     b.0.callback_data
                                         .as_ref()
                                         .expect(&format!("no callback data in button: {:?}", b.0));
-                                let cmds = engine
-                                    .handle_keyboard_responce(uid, b.1, callback, b.2, now)
-                                    .expect("unexpected error");
+                                let (res, cmds) =
+                                    engine.handle_keyboard_responce(uid, b.1, callback, b.2, now);
+                                res.expect("unexpected error");
                                 log_frontend_command(src, &cmds);
                                 handle_command_to_frontend(&mut front, uid, cmds)
                                     .expect("unexpected error");

@@ -10,7 +10,8 @@ use crate::helpers::*;
 use crate::text_data;
 
 pub(crate) const EXPECT_DURATION_MSG: &str = "Ok, now write time duration.";
-pub(crate) const EXPECT_TIME_MSG: &str = "Ok, now write the time of event";
+pub(crate) const EXPECT_HOURS: &str = "Now choose hour";
+pub(crate) const EXPECT_MINUTES: &str = "Now choose minute";
 pub(crate) const EXPECT_BUTTON_PUSH: &str = "Ok, now choose";
 
 #[derive(Clone, Debug, PartialEq)]
@@ -367,7 +368,7 @@ impl AtCalendar {
             let del_cmd = FrontendCommand::delete_message(data.msg_id);
             let keyboard_command = FrontendCommand::keyboard {
                 action_type: KeyboardType::Hour,
-                text: EXPECT_TIME_MSG.to_string(),
+                text: EXPECT_HOURS.to_string(),
             };
             return Ok(ProcessResult {
                 frontend_command: vec![del_cmd, keyboard_command],
@@ -382,7 +383,7 @@ impl AtCalendar {
             // TODO: bot.send_message(chat_id, 'Ok, ' + date.strftime(r'%b %d') + '. Now write the time of event.')
             let keyboard_cmd = FrontendCommand::keyboard {
                 action_type: KeyboardType::Hour,
-                text: EXPECT_TIME_MSG.to_string(),
+                text: EXPECT_HOURS.to_string(),
             };
             let delete_cmd = FrontendCommand::delete_message(data.msg_id);
             let now = if data.callback_data == "today" {
@@ -415,7 +416,7 @@ impl AtTimeHour {
         let del_cmd = FrontendCommand::delete_message(msg_id);
         let keyboard_command = FrontendCommand::keyboard {
             action_type: KeyboardType::Minute,
-            text: format!("Ok, {}. Now choose minute", hour),
+            text: format!("Ok, {}. {}", hour, EXPECT_MINUTES),
         };
 
         ProcessResult {
@@ -472,10 +473,13 @@ impl AtTimeMinute {
 
             let ret_text = process_text_command(uid, &result_command, now, db)
                 .ok_or(anyhow!("expected time format spec"))?;
-            Ok(ProcessResult::msg_send(
-                ret_text,
-                StateMachine::ReadyToProcess,
-            ))
+            Ok(ProcessResult {
+                frontend_command: vec![
+                    FrontendCommand::delete_message(msg_id),
+                    FrontendCommand::send { text: ret_text },
+                ],
+                next_state: Some(StateMachine::ReadyToProcess),
+            })
         } else {
             let send_command = FrontendCommand::send {
                 text: "Now write event message".to_owned(),
@@ -506,7 +510,7 @@ impl AtTimeMinute {
             self.proceed_next_stage(minute, data.uid, data.msg_id, db, now)
         } else {
             Ok(ProcessResult::msg_send(
-                "Incorrect format, expect number of minute".to_string(),
+                "Incorrect format, expect number of minutes".to_string(),
                 StateMachine::ReadyToProcess,
             ))
         }
@@ -605,18 +609,5 @@ impl RepDeleteChoose {
             "Internal logic failed".to_string(),
             StateMachine::ReadyToProcess,
         )
-    }
-}
-
-#[cfg(test)]
-pub(crate) fn is_state_message(msg: &str) -> bool {
-    if msg.starts_with(EXPECT_DURATION_MSG) {
-        true
-    } else if msg.starts_with(EXPECT_TIME_MSG) {
-        true
-    } else if msg.starts_with(EXPECT_BUTTON_PUSH) {
-        true
-    } else {
-        false
     }
 }
