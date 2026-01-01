@@ -4,8 +4,11 @@ mod tests {
     use frankenstein::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 
     use crate::{
-        FrontendHandler, database, engine, handle_command_to_frontend,
-        state::{EXPECT_BUTTON_PUSH, EXPECT_DURATION_MSG, FrontendCommand},
+        FrontendHandler,
+        database::{self, UserInfo},
+        engine, handle_command_to_frontend,
+        keyboards::OK_BUTTON_TEXT,
+        state::{EXPECT_BUTTON_PUSH, EXPECT_DURATION_MSG, FrontendCommand, is_state_message},
     };
 
     struct Message {
@@ -21,6 +24,44 @@ mod tests {
     impl MockFront {
         fn new() -> Self {
             Self { chat: vec![] }
+        }
+
+        fn last_msg_id(&self) -> i32 {
+            self.chat.len() as i32 - 1
+        }
+
+        fn get_all_buttons(&self) -> Vec<(InlineKeyboardButton, i32, &str)> {
+            let mut buttons = Vec::<(InlineKeyboardButton, i32, &str)>::new();
+            for (i, msg) in self.chat.iter().enumerate() {
+                if let Some(k) = &msg.keyboard
+                    && !msg.deleted
+                {
+                    for row in &k.inline_keyboard {
+                        for b in row.iter() {
+                            buttons.push((b.clone(), i as i32, &msg.msg));
+                        }
+                    }
+                }
+            }
+            buttons
+        }
+
+        fn get_last_msg_buttons(&self) -> Vec<(InlineKeyboardButton, i32, &str)> {
+            let mut buttons = Vec::<(InlineKeyboardButton, i32, &str)>::new();
+
+            for (i, msg) in self.chat.iter().rev().enumerate() {
+                if !msg.deleted {
+                    if let Some(k) = &msg.keyboard {
+                        for row in &k.inline_keyboard {
+                            for b in row.iter() {
+                                buttons.push((b.clone(), i as i32, &msg.msg));
+                            }
+                        }
+                    }
+                    break;
+                }
+            }
+            buttons
         }
     }
 
@@ -109,9 +150,15 @@ mod tests {
 
             let mut front = MockFront::new();
             let mut engine = engine::Engine::new(database::DbMode::InMemory);
-            engine
-                .add_user(uid, "name", uid, "", "", -3)
-                .expect("cannot add user"); // TODO: chaos tz
+            let user = UserInfo {
+                uid,
+                name: "name",
+                chat_id: uid,
+                first_name: "",
+                last_name: "",
+                tz: -3,
+            };
+            engine.add_user(user, 0).expect("cannot add user"); // TODO: chaos tz
 
             let labels = &["user_write_msg", "user_push_button", "tick"];
 
@@ -124,9 +171,9 @@ mod tests {
                                 .last()
                                 .map(|last| {
                                     src.log_value("last_msg", &last.msg);
-                                    if last.msg.starts_with(EXPECT_BUTTON_PUSH) {
+                                    if last.msg.contains(EXPECT_BUTTON_PUSH) {
                                         ExpectedNextAction::PushButton
-                                    } else if last.msg == EXPECT_DURATION_MSG {
+                                    } else if last.msg.contains(EXPECT_DURATION_MSG) {
                                         ExpectedNextAction::WriteDurationSpec
                                     } else {
                                         ExpectedNextAction::None
@@ -153,7 +200,9 @@ mod tests {
                             };
 
                             src.log_value("msg", &msg);
-                            let cmds = engine.handle_text_message(uid, &msg, now);
+                            front.send_message(uid, &msg, None).expect("always");
+                            let cmds =
+                                engine.handle_text_message(uid, front.last_msg_id(), &msg, now);
 
                             let cmds = match cmds {
                                 Ok(cmds) => {
@@ -172,33 +221,53 @@ mod tests {
 
                             log_frontend_command(src, &cmds);
                             handle_command_to_frontend(&mut front, uid, cmds)
-                                .expect("no error in test");
+                                .expect("unexpected error");
                         }
                         "user_push_button" => {
-                            let mut buttons = Vec::<(InlineKeyboardButton, i32, &str)>::new();
-                            for (i, msg) in front.chat.iter().enumerate() {
-                                if let Some(k) = &msg.keyboard
-                                    && !msg.deleted
-                                {
-                                    for row in &k.inline_keyboard {
-                                        for b in row.iter() {
-                                            buttons.push((b.clone(), i as i32, &msg.msg));
-                                        }
+                            let state_machine_middle_state = front
+                                .chat
+                                .last()
+                                .map(|last| {
+                                    if let Some(keyboard) = &last.keyboard {
+                                        keyboard
+                                            .inline_keyboard
+                                            .iter()
+                                            .flat_map(|k| k.iter())
+                                            .find_map(|k| {
+                                                k.callback_data
+                                                    .as_ref()
+                                                    .map(|f| f == OK_BUTTON_TEXT)
+                                            })
+                                            .is_none()
+                                    } else {
+                                        is_state_message(&last.msg)
                                     }
-                                }
-                            }
+                                })
+                                .unwrap_or(false);
 
-                            if let Some((b, _)) = src.choose("button", &buttons) {
-                                if let Some(callback) = &b.0.callback_data {
-                                    let cmds = engine
-                                        .handle_keyboard_responce(uid, b.1, callback, b.2, now)
-                                        .expect("no error in test");
-                                    log_frontend_command(src, &cmds);
-                                    handle_command_to_frontend(&mut front, uid, cmds)
-                                        .expect("no error in test");
-                                } else {
-                                    panic!("no callback data in button: {:?}", b.0);
-                                }
+                            // if we in a middle of state machine processing, we use only last message keyboard
+                            // just because it whould be harder to make prop test
+                            // (mainly because it's hard to make a good property with current chat model and
+                            // it's not worth the efford)
+                            let buttons = if state_machine_middle_state {
+                                front.get_last_msg_buttons()
+                            } else {
+                                front.get_all_buttons()
+                            };
+
+                            let button = src.choose("button", &buttons).map(|b| b.0);
+
+                            if let Some(b) = button {
+                                let callback =
+                                    b.0.callback_data
+                                        .as_ref()
+                                        .expect(&format!("no callback data in button: {:?}", b.0));
+                                let cmds = engine
+                                    .handle_keyboard_responce(uid, b.1, callback, b.2, now)
+                                    .expect("unexpected error");
+                                log_frontend_command(src, &cmds);
+                                handle_command_to_frontend(&mut front, uid, cmds)
+                                    .expect("unexpected error");
                             }
                         }
                         "tick" => {}

@@ -1,26 +1,25 @@
 extern crate chrono;
 
 use chrono::prelude::*;
-use log::warn;
 use regex::{Captures, Regex};
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum Command {
+pub(crate) enum Command {
     OneTimeEvent(OneTimeEventImpl),
     RepetitiveEvent(RepetitiveEventImpl),
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct OneTimeEventImpl {
-    pub event_time: DateTime<Utc>,
-    pub event_text: String,
+pub(crate) struct OneTimeEventImpl {
+    pub(crate) event_time: DateTime<Utc>,
+    pub(crate) event_text: String,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct RepetitiveEventImpl {
-    pub event_start_time: DateTime<Utc>,
-    pub event_wait_time: chrono::Duration,
-    pub event_text: String,
+pub(crate) struct RepetitiveEventImpl {
+    pub(crate) event_start_time: DateTime<Utc>,
+    pub(crate) event_wait_time: chrono::Duration,
+    pub(crate) event_text: String,
 }
 
 const MOMENT_DAY_REGEX: &str =
@@ -30,7 +29,7 @@ const MOMENT_TIME_REGEX: &str = r"(?P<m_hour>[\d]+)(?:[.|:](?P<m_minute>[\d]+))?
 
 const DURATION_REGEX: &str = r"(:?(?P<d_day>[\d]*)[D|d|Д|д])?(:?(?P<d_hour>[\d]*)[H|h|Ч|ч])?(:?(?P<d_minute>[\d]*)[M|m|М|м])?(:?(?P<d_second>[\d]*)[S|s|С|с])?";
 
-pub fn parse_command(
+pub(crate) fn parse_command(
     command_line: String,
     now: DateTime<Utc>,
     user_timezone: i32,
@@ -51,11 +50,6 @@ pub fn parse_command(
     if result.is_some() {
         return result;
     }
-
-    warn!(
-        "parse_command: line {} doesn't match any regex",
-        command_line
-    );
     None
 }
 

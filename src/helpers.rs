@@ -4,7 +4,7 @@ use chrono::prelude::*;
 use log::debug;
 
 // TODO: make test
-pub fn format_return_message_header(
+pub(crate) fn format_return_message_header(
     event_time: &DateTime<Utc>,
     now: DateTime<Utc>,
     tz: i32,
@@ -32,7 +32,7 @@ pub fn format_return_message_header(
     t_event.format("I'll remind you %B %e at %H:%M").to_string()
 }
 
-pub fn process_text_command(
+pub(crate) fn process_text_command(
     uid: i64,
     text_message: &str,
     now: DateTime<Utc>,
@@ -89,7 +89,7 @@ fn process_repetitive_event_command(
     return_string
 }
 
-pub fn get_active_event_list(uid: i64, db: &mut DataBase) -> Vec<String> {
+pub(crate) fn get_active_event_list(uid: i64, db: &mut DataBase) -> Vec<String> {
     let mut result = Vec::new();
     let command_vector = db.get_all_active_events(uid);
     let tz = db.get_user_timezone(uid) as i64;
@@ -107,7 +107,7 @@ pub fn get_active_event_list(uid: i64, db: &mut DataBase) -> Vec<String> {
     result
 }
 
-pub fn get_rep_event_list(uid: i64, db: &mut DataBase) -> (Vec<String>, Vec<i64>) {
+pub(crate) fn get_rep_event_list(uid: i64, db: &mut DataBase) -> (Vec<String>, Vec<i64>) {
     let mut result_str = Vec::new();
     let mut result_id = Vec::new();
     let command_vector = db.get_all_rep_events(uid);

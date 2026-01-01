@@ -6,33 +6,33 @@ use chrono::prelude::*;
 use log::error;
 use rusqlite::{Connection, params};
 
-pub struct DataBase {
+pub(crate) struct DataBase {
     conn: Connection,
 }
 
-pub enum DbMode {
+pub(crate) enum DbMode {
     #[cfg_attr(not(test), expect(dead_code, reason = "Used only in tests"))]
     InMemory,
     Filesystem,
 }
 
-pub struct UserInfo<'a> {
-    pub uid: i64,
-    pub name: &'a str,
-    pub chat_id: i64,
-    pub first_name: &'a str,
-    pub last_name: &'a str,
-    pub tz: i32,
+pub(crate) struct UserInfo<'a> {
+    pub(crate) uid: i64,
+    pub(crate) name: &'a str,
+    pub(crate) chat_id: i64,
+    pub(crate) first_name: &'a str,
+    pub(crate) last_name: &'a str,
+    pub(crate) tz: i32,
 }
 
 #[derive(Debug, PartialEq)]
-pub struct RetrieveEventsResult {
-    pub command: Command,
-    pub uid: i64,
+pub(crate) struct RetrieveEventsResult {
+    pub(crate) command: Command,
+    pub(crate) uid: i64,
 }
 
 impl DataBase {
-    pub fn new(mode: DbMode) -> DataBase {
+    pub(crate) fn new(mode: DbMode) -> DataBase {
         let conn = match mode {
             DbMode::Filesystem => {
                 Connection::open("database.db").expect("Cannot connect to sqlite")
@@ -50,7 +50,7 @@ impl DataBase {
         DataBase { conn }
     }
 
-    pub fn add_user(&mut self, info: UserInfo) -> Result<()> {
+    pub(crate) fn add_user(&mut self, info: UserInfo) -> Result<()> {
         self.conn
             .execute(
                 sql_q::INSERT_USER,
@@ -67,14 +67,14 @@ impl DataBase {
             .map_err(Into::into)
     }
 
-    pub fn put(&mut self, uid: i64, value: Command, now: DateTime<Utc>) -> bool {
+    pub(crate) fn put(&mut self, uid: i64, value: Command, now: DateTime<Utc>) -> bool {
         match value {
             Command::OneTimeEvent(ev) => self.put_one_time_event(uid, -1, &ev),
             Command::RepetitiveEvent(ev) => self.put_repetitive_event(uid, &ev, now),
         }
     }
 
-    pub fn extract_events_happens_already(
+    pub(crate) fn extract_events_happens_already(
         &mut self,
         time: DateTime<Utc>,
     ) -> Vec<RetrieveEventsResult> {
@@ -126,7 +126,7 @@ impl DataBase {
         result
     }
 
-    pub fn get_nearest_wakeup(&self) -> Option<DateTime<Utc>> {
+    pub(crate) fn get_nearest_wakeup(&self) -> Option<DateTime<Utc>> {
         self.conn
             .query_row(sql_q::MIN_TIMESTAMP_FROM_ACTIVE_EVENT, params![], |row| {
                 row.get(0).map(|expr| {
@@ -138,7 +138,7 @@ impl DataBase {
             .ok()
     }
 
-    pub fn get_all_active_events(&self, uid: i64) -> Vec<Command> {
+    pub(crate) fn get_all_active_events(&self, uid: i64) -> Vec<Command> {
         let mut result = Vec::new();
 
         let mut stmt = self
@@ -164,7 +164,7 @@ impl DataBase {
         result
     }
 
-    pub fn get_all_rep_events(&self, uid: i64) -> Vec<(Command, i64)> {
+    pub(crate) fn get_all_rep_events(&self, uid: i64) -> Vec<(Command, i64)> {
         let mut result = Vec::new();
 
         let mut stmt = self
@@ -194,7 +194,7 @@ impl DataBase {
         result
     }
 
-    pub fn delete_rep_event(&mut self, event_id: i64) -> bool {
+    pub(crate) fn delete_rep_event(&mut self, event_id: i64) -> bool {
         if self
             .conn
             .execute(sql_q::DELETE_FROM_REP_BY_ID, [&event_id])
@@ -212,14 +212,14 @@ impl DataBase {
         true
     }
 
-    pub fn get_user_timezone(&self, uid: i64) -> i32 {
+    pub(crate) fn get_user_timezone(&self, uid: i64) -> i32 {
         let row = self
             .conn
             .query_row(sql_q::GET_USER_TIMEZONE, [&uid], |row| row.get(0));
         row.unwrap()
     }
 
-    pub fn get_user_chat_id_all(&self) -> Vec<i32> {
+    pub(crate) fn get_user_chat_id_all(&self) -> Vec<i64> {
         let mut result = Vec::new();
 
         let mut stmt = self

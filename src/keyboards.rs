@@ -2,6 +2,8 @@ use calendarize::calendarize_with_offset;
 use chrono::NaiveDate;
 use frankenstein::types::{InlineKeyboardButton, InlineKeyboardMarkup};
 
+pub(crate) const OK_BUTTON_TEXT: &str = "Ok";
+
 #[rustfmt::skip]
 pub(crate) fn make_main_action_keyboard() -> InlineKeyboardMarkup {
     let keyboard: Vec<Vec<InlineKeyboardButton>> = vec![
@@ -17,7 +19,7 @@ pub(crate) fn make_main_action_keyboard() -> InlineKeyboardMarkup {
         vec![
             InlineKeyboardButton::builder().text("3h").callback_data("3h").build(),
             InlineKeyboardButton::builder().text("1d").callback_data("1d").build(),
-            InlineKeyboardButton::builder().text("Ok").callback_data("Ok").build(),
+            InlineKeyboardButton::builder().text(OK_BUTTON_TEXT).callback_data(OK_BUTTON_TEXT).build(),
         ],
     ];
 
@@ -26,7 +28,7 @@ pub(crate) fn make_main_action_keyboard() -> InlineKeyboardMarkup {
     }
 }
 
-pub fn make_calendar_keyboard(year: i32, month: u32) -> InlineKeyboardMarkup {
+pub(crate) fn make_calendar_keyboard(year: i32, month: u32) -> InlineKeyboardMarkup {
     let mut rows: Vec<Vec<InlineKeyboardButton>> = Vec::new();
 
     let month_name = NaiveDate::from_ymd_opt(year, month, 1)

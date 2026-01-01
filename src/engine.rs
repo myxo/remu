@@ -1,90 +1,124 @@
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use chrono::{DateTime, Utc};
 use log::{debug, info};
 use std::collections::HashMap;
 
 use crate::command::*;
 use crate::database::{DataBase, DbMode, UserInfo};
+use crate::keyboards::OK_BUTTON_TEXT;
 use crate::state::*;
 
 #[derive(Clone, Debug, PartialEq)]
-pub struct CmdFromEngine {
-    pub uid: i64,
-    pub to_msg: Option<i64>,
-    pub cmd_vec: Vec<FrontendCommand>,
+pub(crate) struct CmdFromEngine {
+    pub(crate) uid: i64,
+    pub(crate) to_msg: Option<i64>,
+    pub(crate) cmd_vec: Vec<FrontendCommand>,
 }
 
-pub struct Engine {
-    data_base: DataBase,
-    user_states: HashMap<i32, UserState>,
+struct UserState {
+    last_msg_id: i32,
+    state: StateMachine,
 }
 
-pub struct ProcessResult {
-    pub frontend_command: Vec<FrontendCommand>,
-    pub next_state: Option<UserState>,
+pub(crate) struct Engine {
+    db: DataBase,
+    user_states: HashMap<i64, UserState>,
+}
+
+pub(crate) struct ProcessResult {
+    pub(crate) frontend_command: Vec<FrontendCommand>,
+    pub(crate) next_state: Option<StateMachine>,
 }
 
 impl ProcessResult {
-    pub(crate) fn single(cmd: FrontendCommand, next: Option<UserState>) -> Self {
+    pub(crate) fn single(cmd: FrontendCommand, next: Option<StateMachine>) -> Self {
         Self {
             frontend_command: vec![cmd],
             next_state: next,
         }
     }
 
-    pub(crate) fn msg_send(text: String, next: UserState) -> Self {
+    pub(crate) fn msg_send(text: String, next: StateMachine) -> Self {
         Self {
-            frontend_command: vec![FrontendCommand::send(SendMessageCommand { text })],
+            frontend_command: vec![FrontendCommand::send { text }],
             next_state: Some(next),
         }
     }
 }
 
 impl Engine {
-    pub fn new(mode: DbMode) -> Engine {
+    pub(crate) fn new(mode: DbMode) -> Engine {
         info!("Initialize engine");
         let mut engine = Engine {
-            data_base: DataBase::new(mode),
+            db: DataBase::new(mode),
             user_states: HashMap::new(),
         };
 
         for id in engine.get_user_chat_id_all() {
-            engine.user_states.insert(id, UserState::ReadyToProcess);
+            engine.user_states.insert(
+                id,
+                UserState {
+                    last_msg_id: 0,
+                    state: StateMachine::ReadyToProcess,
+                },
+            );
         }
         engine
     }
 
-    pub fn handle_text_message(
+    pub(crate) fn handle_text_message(
         &mut self,
         uid: i64,
+        msg_id: i32,
         text_message: &str,
         now: DateTime<Utc>,
     ) -> Result<Vec<FrontendCommand>> {
-        info!("handle text message for {uid}");
         let state = self
             .user_states
-            .get(&(uid as i32))
+            .get(&uid)
             .context("no /start command was processed")?;
         let data = TextEventData {
             uid,
             msg_id: 0,
             input: text_message.to_owned(),
         };
-        debug!("current state: {}", state.str());
-        let result = state.process(data, now, &mut self.data_base)?;
-        let ProcessResult {
-            frontend_command,
-            next_state,
-        } = result;
-        if let Some(next_state) = next_state {
-            debug!("update state to: {:?}", next_state);
-            self.user_states.insert(uid as i32, next_state);
+        info!(
+            "handle text message, current state: {} user: {uid}, msg_id: {msg_id}",
+            state.state.str()
+        );
+        let result = state.state.process(data, now, &mut self.db);
+        match result {
+            Ok(ProcessResult {
+                frontend_command,
+                next_state,
+            }) => {
+                debug!(
+                    "Finish processing, next_state: {next_state:?}, frontend_commands: {frontend_command:?}"
+                );
+                self.user_states.insert(
+                    uid,
+                    UserState {
+                        last_msg_id: msg_id,
+                        state: next_state.unwrap_or(state.state.clone()),
+                    },
+                );
+                Ok(frontend_command)
+            }
+            Err(e) => {
+                debug!("Finish processing with error (return to default state): {e}");
+                self.user_states.insert(
+                    uid,
+                    UserState {
+                        last_msg_id: msg_id,
+                        state: StateMachine::ReadyToProcess,
+                    },
+                );
+                Err(anyhow!("cannot handle text, return to default state: {e}"))
+            }
         }
-        debug!("send frontend_commands: {:?}", frontend_command);
-        Ok(frontend_command)
     }
 
-    pub fn handle_keyboard_responce(
+    pub(crate) fn handle_keyboard_responce(
         &mut self,
         uid: i64,
         msg_id: i32,
@@ -92,12 +126,13 @@ impl Engine {
         msg_text: &str,
         now: DateTime<Utc>,
     ) -> Result<Vec<FrontendCommand>> {
-        info!("handle button push for {uid}");
+        info!("handle button push for {uid}, msg_id: {msg_id}");
         debug!("Handle Keyboard data : {}, text: {}", call_data, msg_text);
-        let state = self.user_states.get(&(uid as i32)).unwrap();
+        let state = self.user_states.get(&uid).unwrap();
         let data = KeyboardEventData {
             uid,
             msg_id,
+            actual_last_msg_id: state.last_msg_id,
             callback_data: call_data.to_owned(),
             msg_text: msg_text.to_owned(),
         };
@@ -107,70 +142,78 @@ impl Engine {
                 frontend_command: vec![FrontendCommand::delete_keyboard(msg_id)],
                 next_state: None,
             }),
-            "Ok" => Ok(ProcessResult {
+            OK_BUTTON_TEXT => Ok(ProcessResult {
                 frontend_command: vec![FrontendCommand::delete_keyboard(msg_id)],
                 next_state: None,
             }),
-            _ => state.process_keyboard(data, now, &mut self.data_base),
+            _ => state.state.process_keyboard(data, now, &mut self.db),
         };
-        let (front_cmd, next) = match result {
+        match result {
             Ok(ProcessResult {
                 frontend_command,
                 next_state,
-            }) => (frontend_command, next_state),
-            Err(e) => (
-                vec![FrontendCommand::send(SendMessageCommand {
-                    text: format!("error while processing keyboard, return to default state: {e}"),
-                })],
-                Some(UserState::ReadyToProcess),
-            ),
-        };
-        if let Some(next_state) = next {
-            self.user_states.insert(uid as i32, next_state);
+            }) => {
+                debug!(
+                    "Finish processing button press, next state: {:?}, frontend_commands: {:?}",
+                    next_state, frontend_command
+                );
+                self.user_states.insert(
+                    uid,
+                    UserState {
+                        last_msg_id: msg_id,
+                        state: next_state.unwrap_or(state.state.clone()),
+                    },
+                );
+                Ok(frontend_command)
+            }
+            Err(e) => {
+                debug!("Finish processing with error (return to default state): {e}");
+                self.user_states.insert(
+                    uid,
+                    UserState {
+                        last_msg_id: msg_id,
+                        state: StateMachine::ReadyToProcess,
+                    },
+                );
+                Err(anyhow!(
+                    "cannot handle button press, return to default state: {e}"
+                ))
+            }
         }
-        debug!("send frontend_commands: {:?}", front_cmd);
-        Ok(front_cmd)
     }
 
-    pub fn add_user(
-        &mut self,
-        uid: i64,
-        username: &str,
-        chat_id: i64,
-        first_name: &str,
-        last_name: &str,
-        tz: i32,
-    ) -> Result<()> {
-        info!("Add new user id - {}, username - {}", uid, username);
-        let user_info = UserInfo {
-            uid,
-            name: username,
+    pub(crate) fn add_user(&mut self, user_info: UserInfo, msg_id: i32) -> Result<()> {
+        info!(
+            "Add new user id - {}, username - {} {}",
+            user_info.chat_id, user_info.first_name, user_info.last_name
+        );
+        let chat_id = user_info.chat_id;
+        self.db.add_user(user_info)?;
+        self.user_states.insert(
             chat_id,
-            first_name,
-            last_name,
-            tz,
-        };
-        self.data_base.add_user(user_info)?;
-        self.user_states
-            .insert(uid as i32, UserState::ReadyToProcess);
+            UserState {
+                last_msg_id: msg_id,
+                state: StateMachine::ReadyToProcess,
+            },
+        );
         Ok(())
     }
 
-    pub fn get_user_chat_id_all(&self) -> Vec<i32> {
-        self.data_base.get_user_chat_id_all()
+    pub(crate) fn get_user_chat_id_all(&self) -> Vec<i64> {
+        self.db.get_user_chat_id_all()
     }
 
-    pub fn tick(&mut self, now: DateTime<Utc>) -> Vec<CmdFromEngine> {
+    pub(crate) fn tick(&mut self, now: DateTime<Utc>) -> Vec<CmdFromEngine> {
         let mut result: Vec<CmdFromEngine> = Vec::new();
-        for ev in self.data_base.extract_events_happens_already(now) {
+        for ev in self.db.extract_events_happens_already(now) {
             let event_text = match &ev.command {
                 Command::OneTimeEvent(ev) => ev.event_text.clone(),
                 Command::RepetitiveEvent(ev) => ev.event_text.clone(),
             };
-            let cmd = FrontendCommand::keyboard(KeyboardCommand {
-                action_type: KeyboardCommandType::Main,
+            let cmd = FrontendCommand::keyboard {
+                action_type: KeyboardType::Main,
                 text: event_text,
-            });
+            };
             result.push(CmdFromEngine {
                 uid: ev.uid,
                 to_msg: None,
@@ -180,11 +223,11 @@ impl Engine {
         result
     }
 
-    pub fn get_time_until_next_wakeup(
+    pub(crate) fn get_time_until_next_wakeup(
         &self,
         now: chrono::DateTime<chrono::Utc>,
     ) -> Option<std::time::Duration> {
-        self.data_base.get_nearest_wakeup().map(|ts| {
+        self.db.get_nearest_wakeup().map(|ts| {
             ts.signed_duration_since(now)
                 .to_std()
                 .unwrap_or(std::time::Duration::ZERO) // we got negative, so we should wake up immediately
