@@ -8,6 +8,11 @@ edition = "2024"
 name = "remu"
 path = "src/remu.rs"
 
+[lints.clippy]
+if_same_then_else = "allow"
+needless_bool = "allow"
+collapsible_if = "allow"
+
 [dependencies]
 chrono = "0.4"
 calendarize = "1.1"

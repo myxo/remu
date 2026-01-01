@@ -310,7 +310,7 @@ mod tests {
                             let state_machine_middle_state = front
                                 .chat
                                 .last()
-                                .map(|last| is_state_machine_active(last))
+                                .map(is_state_machine_active)
                                 .unwrap_or(false);
 
                             src.log_value(
@@ -330,10 +330,9 @@ mod tests {
                             let button = src.choose("button", &buttons).map(|b| b.0);
 
                             if let Some(b) = button {
-                                let callback =
-                                    b.0.callback_data
-                                        .as_ref()
-                                        .expect(&format!("no callback data in button: {:?}", b.0));
+                                let callback = b.0.callback_data.as_ref().unwrap_or_else(|| {
+                                    panic!("no callback data in button: {:?}", b.0)
+                                });
                                 let (res, cmds) =
                                     engine.handle_keyboard_responce(uid, b.1, callback, b.2, now);
                                 res.expect("unexpected error");
